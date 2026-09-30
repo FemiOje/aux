@@ -1,0 +1,6 @@
+{
+  "enabledMcpjsonServers": [
+    "monad-docs"
+  ],
+  "enableAllProjectMcpServers": true
+}

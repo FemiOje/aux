@@ -1,0 +1,16 @@
+{
+  "name": "aux",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --parallel --filter web --filter server dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter server db:generate",
+    "db:migrate": "pnpm --filter server db:migrate",
+    "db:seed": "pnpm --filter server db:seed"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3"
+  }
+}
