@@ -43,9 +43,9 @@ const [weirdFishes, reckoner, konkoBelow] = await db
   .returning()
 
 await db.insert(providerTracks).values([
-  { recordingId: weirdFishes.id, provider: 'youtube', providerTrackId: 'yt_Ab12Cd', durationMs: 319000 },
+  { recordingId: weirdFishes.id, provider: 'youtube', providerTrackId: 'FcANFVcJeOM', durationMs: 319000 },
   { recordingId: weirdFishes.id, provider: 'spotify', providerTrackId: 'sp_9xYzQ1', durationMs: 318000 },
-  { recordingId: konkoBelow.id, provider: 'youtube', providerTrackId: 'yt_Kz88Lq', durationMs: 415000 }
+  { recordingId: konkoBelow.id, provider: 'youtube', providerTrackId: 'QXIxC6msiow', durationMs: 415000 }
 ])
 
 const [femiDrop, adaDrop] = await db

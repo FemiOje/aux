@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Aux**: music fans post a song with a short note (a **drop**), others play and save it, and can tip the curator on Monad. Audio is never stored or streamed by us; songs play in the browser via YouTube/Spotify embeds.
 
-`README.md` is the architecture guide (glossary, tech stack, module layout, 13-table schema, ERD, user flows, API/WebSocket spec). It describes the **target** design; most of it isn't built yet. Today the repo has: a bare Vite + React app, a Fastify server with `/`, `/db`, `/redis` health routes, the full Drizzle schema + seed, `@aux/shared` Zod schemas, and the `Curation` contract. Build toward the README, one piece at a time. Don't assume missing pieces (router, TanStack Query, worker, indexer, modules, lint, tests) exist.
+`README.md` is the architecture guide (glossary, tech stack, module layout, 13-table schema, ERD, user flows, API/WebSocket spec). It describes the **target** design; most of it isn't built yet. Today the repo has: the full Drizzle schema + seed, `@aux/shared` Zod schemas, the `Curation` contract, and one read-only slice end to end: `GET /feed` and `GET /drops/:id` on the server (`drops` module, with the read-only parts of `catalog` and `identity` it needs), and a web feed (React Router, TanStack Query, Zustand) that plays drops through `PlaybackPort` with a YouTube adapter. Build toward the README, one piece at a time. Don't assume missing pieces (auth, writes, link resolving, worker, indexer, rooms, taste, Spotify/preview adapters, lint) exist.
 
 Older hackathon notes (`ideas.md`, `execution.md`, `tracks-eligibility.md`, `inspo/`) are from the pre-Aux order-book exploration. `hackathon-resources.md` is still the go-to for Monad links, RPCs, and indexers.
 
@@ -34,6 +34,8 @@ From the repo root (see `SETUP.md` for first-time setup):
 docker compose up -d   # Postgres 18 + Redis 7
 pnpm dev               # web (5173) + server (3000) in parallel
 pnpm typecheck         # tsc across packages
+pnpm test              # Vitest (server + web); server tests need Postgres up and seeded
+pnpm --filter server exec vitest run -t <testName>   # single test
 pnpm db:generate       # after editing schema.ts
 pnpm db:migrate
 pnpm db:seed
