@@ -817,7 +817,7 @@ Then open the React app at `http://localhost:5173`. The API server runs on `http
 | `DATABASE_URL` | Postgres connection. The default works with Docker Compose |
 | `REDIS_URL` | Redis connection. The default works with Docker Compose |
 | `PRIVY_APP_ID`, `PRIVY_APP_SECRET` | Sign-in and wallets. Ask the team lead for test keys |
-| `MONAD_RPC_URL` | The Monad testnet node we send transactions through |
+| `ALCHEMY_MONAD_TESTNET_RPC_URL`, `ALCHEMY_MONAD_MAINNET_RPC_URL` | Alchemy Monad testnet and mainnet nodes we send transactions through |
 | `CURATION_CONTRACT_ADDRESS` | Where our contract lives on testnet |
 | `TOKEN_ENCRYPTION_KEY` | Encrypts music service tokens in `linked_accounts`. Never commit this |
 

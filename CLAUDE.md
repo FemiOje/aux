@@ -48,7 +48,7 @@ forge test -vvv
 forge test --mt <testName> -vvv   # single test
 ```
 
-Deploy: `forge script script/Curation.s.sol --rpc-url $MONAD_RPC_URL --account <keystore> --broadcast`.
+Deploy: `forge script script/Curation.s.sol --rpc-url $ALCHEMY_MONAD_TESTNET_RPC_URL --account <keystore> --broadcast`.
 
 ## Conventions
 
