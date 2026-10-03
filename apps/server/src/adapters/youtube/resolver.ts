@@ -22,7 +22,7 @@ export function parseVideoId(url: string): string | null {
 
   let id: string | null = null
   if (parsed.hostname === 'youtu.be') {
-    id = parsed.pathname.slice(1)
+    id = parsed.pathname.slice(1).split('/')[0]
   } else if (HOSTS.has(parsed.hostname)) {
     const prefix = PATH_PREFIXES.find((p) => parsed.pathname.startsWith(p))
     id = prefix ? parsed.pathname.slice(prefix.length).split('/')[0] : parsed.searchParams.get('v')
@@ -35,9 +35,8 @@ export function parseMetadata(videoTitle: string, channel: string): { title: str
   const title = videoTitle.replace(NOISE, '').trim() || videoTitle.trim()
 
   // Auto-generated "<Artist> - Topic" channels carry the bare song title.
-  if (channel.endsWith(TOPIC_SUFFIX)) {
-    return { title, artist: channel.slice(0, -TOPIC_SUFFIX.length) }
-  }
+  const topicArtist = channel.endsWith(TOPIC_SUFFIX) ? channel.slice(0, -TOPIC_SUFFIX.length).trim() : ''
+  if (topicArtist) return { title, artist: topicArtist }
 
   const split = title.match(/^(.+?)\s[-–—]\s(.+)$/)
   if (split) return { title: split[2].trim(), artist: split[1].trim() }
