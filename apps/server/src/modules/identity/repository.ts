@@ -44,6 +44,10 @@ export function createIdentityRepository(db: typeof Db) {
         .innerJoin(users, eq(users.id, sessions.userId))
         .where(and(eq(sessions.tokenHash, tokenHash), gt(sessions.expiresAt, now)))
       return row
+    },
+
+    async deleteSessionByHash(tokenHash: string): Promise<void> {
+      await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash))
     }
   }
 }

@@ -97,6 +97,11 @@ export function createIdentityService(repository: IdentityRepository, auth: Auth
     async authenticate(sessionToken: string): Promise<Me | null> {
       const user = await repository.findUserBySessionHash(hashToken(sessionToken), new Date())
       return user ? toMe(user) : null
+    },
+
+    // Ends this one session. The user's other devices stay signed in.
+    async signOut(sessionToken: string): Promise<void> {
+      await repository.deleteSessionByHash(hashToken(sessionToken))
     }
   }
 }

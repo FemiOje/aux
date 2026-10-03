@@ -233,7 +233,7 @@ We have 14 tables, grouped below by the module that owns them. Only the owning m
 
 `privy_user_id` is empty until the user's first sign-in. On first sign-in we match by Privy ID, then by email, and only then create a new user.
 
-**sessions**: one row per sign-in. `POST /auth/session` hands the browser a random token and stores only its SHA-256, so a leaked database can't be used to sign in. Sessions last 30 days.
+**sessions**: one row per sign-in. `POST /auth/session` hands the browser a random token and stores only its SHA-256, so a leaked database can't be used to sign in. Sessions last 30 days, or until the user signs out, which deletes the row.
 
 | id (bigint, PK) | user_id (FK → users) | token_hash (text, unique) | expires_at (timestamptz) |
 | --- | --- | --- | --- |
@@ -687,6 +687,7 @@ The React app talks to the API server in two ways: normal HTTP requests (REST) f
 | Method and path | What it does | Module |
 | --- | --- | --- |
 | `POST /auth/session` | Swaps a Privy sign-in token for our session. Creates the user on first sign-in | identity |
+| `DELETE /auth/session` | Signs out: deletes the session the request was sent with | identity |
 | `GET /me` | The signed-in user's profile | identity |
 | `PATCH /me` | Change handle or preferred music service | identity |
 | `GET /users/:handle` | A user's public profile and drops | identity |
