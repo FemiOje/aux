@@ -1,4 +1,6 @@
 import { Link, Outlet } from "react-router";
+import { AUTH_ENABLED } from "../auth/AuthProvider";
+import { AccountMenu } from "./AccountMenu";
 import { PLAYER_HOST_ID, useNowPlaying } from "../stores/nowPlaying";
 
 const clock = (ms: number) => {
@@ -31,6 +33,7 @@ export function Layout() {
     <>
       <header>
         <Link to="/">Aux</Link>
+        {AUTH_ENABLED && <AccountMenu />}
       </header>
       <main>
         <Outlet />
