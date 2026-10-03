@@ -1,4 +1,5 @@
 import { apiErrorSchema } from "@aux/shared";
+import { isLive, useSession } from "../stores/session";
 
 // Vite proxies /api to the server in dev and strips the prefix.
 const BASE = "/api";
@@ -16,8 +17,19 @@ export class ApiRequestError extends Error {
 type Schema<T> = { parse(data: unknown): T };
 
 async function request<T>(path: string, schema: Schema<T>, init?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + path, init);
+  // Signed-in requests carry our session token.
+  const { session } = useSession.getState();
+  const token = isLive(session) ? session.token : null;
+  const headers = new Headers(init?.headers);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const res = await fetch(BASE + path, { ...init, headers });
   const body: unknown = await res.json().catch(() => null);
+
+  // The server no longer accepts this session, so stop using it. A newer one stored meanwhile is left alone.
+  if (res.status === 401 && token && useSession.getState().session?.token === token) {
+    useSession.getState().clear();
+  }
 
   if (!res.ok) {
     const parsed = apiErrorSchema.safeParse(body);

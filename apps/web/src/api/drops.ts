@@ -1,6 +1,6 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { dropSchema, feedResponseSchema } from "@aux/shared";
-import { apiGet } from "./client";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { dropSchema, feedResponseSchema, type CreateDrop } from "@aux/shared";
+import { apiGet, apiPost } from "./client";
 
 export function useFeed() {
   return useInfiniteQuery({
@@ -17,5 +17,13 @@ export function useDrop(id: string) {
     queryKey: ["drop", id],
     queryFn: () => apiGet(`/drops/${encodeURIComponent(id)}`, dropSchema),
     retry: false,
+  });
+}
+
+export function useCreateDrop() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (drop: CreateDrop) => apiPost("/drops", drop, dropSchema),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["feed"] }),
   });
 }

@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router";
 import { useDrop } from "../api/drops";
+import { friendlyError } from "../api/errors";
 import { DropCard } from "../components/DropCard";
 
 export function DropPage() {
@@ -10,7 +11,7 @@ export function DropPage() {
   if (status === "error") {
     return (
       <>
-        <p role="alert">{error.message}</p>
+        <p role="alert">{friendlyError(error)}</p>
         <Link to="/">Back to the feed</Link>
       </>
     );
