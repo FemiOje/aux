@@ -52,7 +52,7 @@ These words show up everywhere in the code, the database and this guide. Learn t
 | Provider | An outside music service or music data source | YouTube, Spotify, Apple Music, MusicBrainz |
 | Port | A TypeScript interface that says what an adapter must be able to do | `PlaybackPort` needs `play()` and `pause()` |
 | Adapter | A class that makes one provider fit one port | `YouTubePlayback` implements `PlaybackPort` |
-| Save | A user adds someone else's drop to their collection | Ada saves Femi's Lagbaja drop |
+| Save | A user adds a drop to their collection, usually someone else's | Ada saves Femi's Lagbaja drop |
 | Tip | A small payment sent with a save, paid on Monad to the curator | 0.5 MON to Femi |
 | Room | A live listening session where everyone hears the same song at the same time | "Friday night Afrobeat" room |
 | Taste neighbour | A user whose taste overlaps with yours enough to be interesting | You share 30% of artists with Tunde |
@@ -293,7 +293,7 @@ Notice that YouTube's copy of Konko Below is 3 seconds longer than our recording
 | 2 | 2 | 1 | Put this on at night with headphones. | 1 |
 | 3 | 3 | 2 | The drums in the second half. | (empty: not onchain yet) |
 
-**saves**: a user keeps someone else's drop. `(drop_id, user_id)` is unique, so each person saves a drop once.
+**saves**: a user keeps a drop, their own included. `(drop_id, user_id)` is unique, so each person saves a drop once.
 
 | id (bigint, PK) | drop_id (FK → drops) | user_id (FK → users) |
 | --- | --- | --- |
@@ -696,9 +696,9 @@ The React app talks to the API server in two ways: normal HTTP requests (REST) f
 | `POST /catalog/resolve` | Turn a pasted link into a recording, or return close matches | catalog |
 | `GET /catalog/search?q=` | Search our catalog and MusicBrainz | catalog |
 | `POST /drops` | Create a drop from a link, plus a note | drops |
-| `GET /drops/:id` | One drop, with its recording and save count | drops |
+| `GET /drops/:id` | One drop, with its recording, its save count and whether you saved it | drops |
 | `GET /feed?cursor=` | Drops from people you follow and your taste neighbours | drops |
-| `POST /drops/:id/save` | Save a drop (`DELETE` to unsave) | drops |
+| `POST /drops/:id/save` | Save a drop (`DELETE` to unsave). Both answer with the drop | drops |
 | `GET /me/neighbours` | Your taste neighbours | taste |
 | `POST /rooms` | Start a live room | rooms |
 | `GET /rooms/:id` | A room's current state and members | rooms |
@@ -723,9 +723,14 @@ Response (`201 Created`):
   "curator": { "handle": "femi" },
   "recording": { "id": 3, "title": "Konko Below", "artist": "Lagbaja" },
   "note": "Wait for the sax at 2:10.",
-  "saveCount": 0
+  "saveCount": 0,
+  "saved": false
 }
 ```
+
+`saved` says whether the person asking has saved the drop. `GET /feed` and `GET /drops/:id` work signed out, where it is always `false`; send the session token to get your own.
+
+Saving twice counts once, and unsaving a drop you haven't saved changes nothing. You can save your own drop.
 
 When we can't tell which song a link is (a fan upload with no artist, say), the response is `422 RECORDING_UNCLEAR` and no drop is made.
 
