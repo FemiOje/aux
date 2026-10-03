@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SessionResponse } from "@aux/shared";
 import { useSession } from "../stores/session";
+import { deleteSession } from "./auth";
 import { apiGet, apiPost } from "./client";
 
 const anything = { parse: (data: unknown) => data };
@@ -15,7 +16,7 @@ function serverAnswering(status: number, body: unknown = {}) {
   const seen: (string | null)[] = [];
   vi.stubGlobal("fetch", async (_url: string, init: RequestInit) => {
     seen.push(new Headers(init.headers).get("Authorization"));
-    return new Response(JSON.stringify(body), { status });
+    return new Response(body === null ? null : JSON.stringify(body), { status });
   });
   return seen;
 }
@@ -56,5 +57,25 @@ describe("session token", () => {
     serverAnswering(500);
     await expect(apiGet("/feed", anything)).rejects.toMatchObject({ status: 500 });
     expect(useSession.getState().session?.token).toBe("abc");
+  });
+});
+
+describe("deleteSession", () => {
+  it("tells the server which session to end", async () => {
+    const seen = serverAnswering(204, null);
+    await deleteSession("abc");
+    expect(seen).toEqual(["Bearer abc"]);
+  });
+
+  it("counts a session the server no longer knows as signed out", async () => {
+    serverAnswering(401, { error: { code: "UNAUTHENTICATED", message: "Sign in to continue" } });
+    await expect(deleteSession("abc")).resolves.toBeUndefined();
+  });
+
+  it("fails when the server could not be reached, so the app stays signed in", async () => {
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    await expect(deleteSession("abc")).rejects.toBeInstanceOf(TypeError);
   });
 });

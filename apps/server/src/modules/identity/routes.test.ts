@@ -120,6 +120,42 @@ describe('POST /auth/session', () => {
   })
 })
 
+describe('DELETE /auth/session', () => {
+  const signOut = (authorization?: string) =>
+    app.inject({ method: 'DELETE', url: '/auth/session', headers: authorization ? { authorization } : {} })
+
+  it('ends that session and leaves the user\'s other sessions alone', async () => {
+    const phone = sessionResponseSchema.parse((await signIn('nia')).json())
+    const laptop = sessionResponseSchema.parse((await signIn('nia')).json())
+
+    expect((await signOut(`Bearer ${phone.token}`)).statusCode).toBe(204)
+
+    expect((await me(`Bearer ${phone.token}`)).statusCode).toBe(401)
+    expect((await me(`Bearer ${laptop.token}`)).statusCode).toBe(200)
+    const left = await db.select().from(sessions).where(eq(sessions.userId, phone.user.id))
+    expect(left.length).toBeGreaterThan(0)
+  })
+
+  it('removes the row rather than only expiring it', async () => {
+    const { token, user } = sessionResponseSchema.parse((await signIn('returning')).json())
+    const before = (await db.select().from(sessions).where(eq(sessions.userId, user.id))).length
+    await signOut(`Bearer ${token}`)
+    expect(await db.select().from(sessions).where(eq(sessions.userId, user.id))).toHaveLength(before - 1)
+  })
+
+  it('is fine with a session that is already gone', async () => {
+    const { token } = sessionResponseSchema.parse((await signIn('nia')).json())
+    expect((await signOut(`Bearer ${token}`)).statusCode).toBe(204)
+    expect((await signOut(`Bearer ${token}`)).statusCode).toBe(204)
+  })
+
+  it.each([undefined, 'Basic abc'])('rejects authorization %s', async (authorization) => {
+    const res = await signOut(authorization)
+    expect(res.statusCode).toBe(401)
+    expect(res.json().error.code).toBe('UNAUTHENTICATED')
+  })
+})
+
 describe('GET /me', () => {
   it.each([undefined, 'Bearer nope', 'Bearer ', 'Basic abc'])('rejects authorization %s', async (authorization) => {
     const res = await me(authorization)
