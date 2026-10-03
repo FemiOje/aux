@@ -28,9 +28,18 @@ export function createDropService({ repository, catalog, identity }: Deps) {
         recording,
         note: row.note,
         saveCount: row.saveCount,
+        saved: row.saved,
         createdAt: row.createdAt.toISOString()
       }
     })
+  }
+
+  // viewerId is the signed-in user asking, if any. It decides each drop's `saved`.
+  async function getDrop(id: number, viewerId?: number): Promise<Drop> {
+    const row = await repository.findById(id, viewerId)
+    if (!row) throw new AppError(404, 'DROP_NOT_FOUND', `Drop ${id} does not exist`)
+    const [drop] = await toDrops([row])
+    return drop
   }
 
   return {
@@ -46,15 +55,16 @@ export function createDropService({ repository, catalog, identity }: Deps) {
         recording,
         note: row.note,
         saveCount: row.saveCount,
+        saved: row.saved,
         createdAt: row.createdAt.toISOString()
       }
     },
 
     // Every drop for now. Narrows to follows and taste neighbours once sign-in exists.
-    async getFeed({ cursor, limit }: FeedQuery): Promise<FeedResponse> {
+    async getFeed({ cursor, limit }: FeedQuery, viewerId?: number): Promise<FeedResponse> {
       const beforeId = cursor === undefined ? undefined : decodeCursor(cursor)
       // One extra row tells us whether another page exists.
-      const rows = await repository.findFeed(beforeId, limit + 1)
+      const rows = await repository.findFeed(viewerId, beforeId, limit + 1)
       const page = rows.slice(0, limit)
       return {
         drops: await toDrops(page),
@@ -62,11 +72,20 @@ export function createDropService({ repository, catalog, identity }: Deps) {
       }
     },
 
-    async getDrop(id: number): Promise<Drop> {
-      const row = await repository.findById(id)
-      if (!row) throw new AppError(404, 'DROP_NOT_FOUND', `Drop ${id} does not exist`)
-      const [drop] = await toDrops([row])
-      return drop
+    getDrop,
+
+    // Saving twice is fine and counts once. Answers with the drop as the saver now sees it.
+    async saveDrop(user: Pick<Me, 'id'>, dropId: number): Promise<Drop> {
+      const row = await repository.findById(dropId, user.id)
+      if (!row) throw new AppError(404, 'DROP_NOT_FOUND', `Drop ${dropId} does not exist`)
+      await repository.insertSave(dropId, user.id)
+      return getDrop(dropId, user.id)
+    },
+
+    // Unsaving a drop you never saved is not an error.
+    async unsaveDrop(user: Pick<Me, 'id'>, dropId: number): Promise<Drop> {
+      await repository.deleteSave(dropId, user.id)
+      return getDrop(dropId, user.id)
     }
   }
 }

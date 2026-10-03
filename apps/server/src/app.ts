@@ -42,7 +42,8 @@ export function buildApp({
     db,
     catalog: catalog.service,
     identity: identity.service,
-    requireUser: identity.requireUser
+    requireUser: identity.requireUser,
+    optionalUser: identity.optionalUser
   }).register(app)
 
   return app

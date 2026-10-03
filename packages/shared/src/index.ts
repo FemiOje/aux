@@ -27,6 +27,8 @@ export const dropSchema = z.object({
   recording: recordingSchema,
   note: z.string(),
   saveCount: z.number().int(),
+  // Whether the person asking has saved this drop. Always false when signed out.
+  saved: z.boolean(),
   createdAt: z.iso.datetime(),
 });
 export type Drop = z.infer<typeof dropSchema>;
