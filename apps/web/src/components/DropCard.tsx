@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import type { Drop } from "@aux/shared";
 import { PlayButton } from "./PlayButton";
+import { SaveButton } from "./SaveButton";
 
 export function DropCard({ drop }: { drop: Drop }) {
   return (
@@ -15,6 +16,7 @@ export function DropCard({ drop }: { drop: Drop }) {
         <p className="meta">
           @{drop.curator.handle} · {drop.saveCount} {drop.saveCount === 1 ? "save" : "saves"}
         </p>
+        <SaveButton drop={drop} />
       </div>
     </article>
   );

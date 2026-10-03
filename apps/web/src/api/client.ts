@@ -52,6 +52,11 @@ export function apiPost<T>(path: string, body: unknown, schema: Schema<T>): Prom
   });
 }
 
+// For calls that say everything in the method and path, like saving a drop.
+export function apiSend<T>(method: "POST" | "DELETE", path: string, schema: Schema<T>): Promise<T> {
+  return request(path, schema, { method });
+}
+
 // For calls that answer with no body. The token is passed in because sign-out ends a session the store may already have dropped.
 export function apiDelete(path: string, token: string): Promise<void> {
   return request(path, { parse: () => undefined }, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
