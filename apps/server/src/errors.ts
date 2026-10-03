@@ -5,9 +5,10 @@ export class AppError extends Error {
   constructor(
     readonly statusCode: number,
     readonly code: string,
-    message: string
+    message: string,
+    options?: ErrorOptions
   ) {
-    super(message)
+    super(message, options)
   }
 }
 
@@ -17,6 +18,7 @@ const body = (code: string, message: string): ApiError => ({ error: { code, mess
 export function registerErrorHandlers(app: FastifyInstance) {
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
+      if (error.statusCode >= 500) request.log.error(error)
       return reply.status(error.statusCode).send(body(error.code, error.message))
     }
     const { statusCode, message } = error as { statusCode?: number; message?: string }

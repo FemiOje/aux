@@ -50,6 +50,18 @@ export const dropParamsSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
 
+export const resolveRequestSchema = z.object({
+  link: z.url(),
+});
+export type ResolveRequest = z.infer<typeof resolveRequestSchema>;
+
+// `recording` is null when we couldn't be sure which song the link is; `matches` are the closest we have.
+export const resolveResponseSchema = z.object({
+  recording: recordingSchema.nullable(),
+  matches: z.array(recordingSchema),
+});
+export type ResolveResponse = z.infer<typeof resolveResponseSchema>;
+
 export const apiErrorSchema = z.object({
   error: z.object({ code: z.string(), message: z.string() }),
 });
