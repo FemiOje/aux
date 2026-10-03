@@ -190,8 +190,8 @@ aux/
 │   │       ├── main-api.ts     Starts the API server
 │   │       ├── main-worker.ts  Starts the worker
 │   │       ├── modules/        identity/ catalog/ drops/ rooms/ taste/
-│   │       ├── ports/          Interfaces: ResolvePort, ImportPort
-│   │       ├── adapters/       musicbrainz/ songlink/ spotify/ lastfm/
+│   │       ├── ports/          Interfaces: ResolvePort, ImportPort, AuthPort
+│   │       ├── adapters/       musicbrainz/ songlink/ spotify/ lastfm/ privy/
 │   │       ├── jobs/           Background job handlers for pg-boss
 │   │       └── db/             schema.ts (Drizzle tables) and migrations/
 │   └── indexer/                Envio config and event handlers
@@ -217,7 +217,7 @@ A request always moves in one direction: **route → service → repository → 
 
 ## Database tables
 
-We have 13 tables, grouped below by the module that owns them. Only the owning module's `repository.ts` may write to its tables.
+We have 14 tables, grouped below by the module that owns them. Only the owning module's `repository.ts` may write to its tables.
 
 **How to read these:** each header shows the column name and its type. PK means primary key (the row's unique ID). FK means foreign key (it points at a row in another table). Every table also has a `created_at` column, left out here to save space. Long IDs and hashes are shortened with "…".
 
@@ -225,11 +225,19 @@ We have 13 tables, grouped below by the module that owns them. Only the owning m
 
 **users**: one row per person who signs up.
 
-| id (bigint, PK) | handle (text, unique) | email (text, unique) | wallet_address (text) | preferred_provider (text) |
-| --- | --- | --- | --- | --- |
-| 1 | femi | femi@example.com | 0x1a2b…9f01 | youtube |
-| 2 | ada | ada@example.com | 0x3c4d…7e22 | spotify |
-| 3 | tunde | tunde@example.com | 0x5e6f…5d33 | youtube |
+| id (bigint, PK) | handle (text, unique) | email (text, unique) | privy_user_id (text, unique) | wallet_address (text) | preferred_provider (text) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | femi | femi@example.com | did:privy:cm1f… | 0x1a2b…9f01 | youtube |
+| 2 | ada | ada@example.com | did:privy:cm2a… | 0x3c4d…7e22 | spotify |
+| 3 | tunde | tunde@example.com | none | 0x5e6f…5d33 | youtube |
+
+`privy_user_id` is empty until the user's first sign-in. On first sign-in we match by Privy ID, then by email, and only then create a new user.
+
+**sessions**: one row per sign-in. `POST /auth/session` hands the browser a random token and stores only its SHA-256, so a leaked database can't be used to sign in. Sessions last 30 days.
+
+| id (bigint, PK) | user_id (FK → users) | token_hash (text, unique) | expires_at (timestamptz) |
+| --- | --- | --- | --- |
+| 1 | 1 | 9f86d0…0a08 | 2026-11-02 |
 
 **linked_accounts**: music services a user has connected, used only to import their taste. Tokens are always encrypted.
 

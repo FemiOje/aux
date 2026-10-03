@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@aux/shared": "workspace:*",
+    "@privy-io/node": "^0.35.0",
     "drizzle-orm": "^0.45.3",
     "fastify": "^5.12.5",
     "pg": "^8.23.0",

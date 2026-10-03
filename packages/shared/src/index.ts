@@ -62,6 +62,30 @@ export const resolveResponseSchema = z.object({
 });
 export type ResolveResponse = z.infer<typeof resolveResponseSchema>;
 
+// `token` is the Privy identity token the browser got at sign-in.
+export const sessionRequestSchema = z.object({
+  token: z.string().min(1),
+});
+export type SessionRequest = z.infer<typeof sessionRequestSchema>;
+
+export const meSchema = z.object({
+  id: z.number().int(),
+  handle: z.string(),
+  email: z.string(),
+  walletAddress: z.string().nullable(),
+  preferredProvider: z.string(),
+  createdAt: z.iso.datetime(),
+});
+export type Me = z.infer<typeof meSchema>;
+
+// `token` is our session token: send it back as `Authorization: Bearer <token>`.
+export const sessionResponseSchema = z.object({
+  token: z.string(),
+  expiresAt: z.iso.datetime(),
+  user: meSchema,
+});
+export type SessionResponse = z.infer<typeof sessionResponseSchema>;
+
 export const apiErrorSchema = z.object({
   error: z.object({ code: z.string(), message: z.string() }),
 });
