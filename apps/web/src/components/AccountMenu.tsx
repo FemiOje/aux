@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useIdentityToken, useLogin, usePrivy } from "@privy-io/react-auth";
 import { useMutation } from "@tanstack/react-query";
-import { createSession } from "../api/auth";
+import { createSession, deleteSession } from "../api/auth";
 import { friendlyError } from "../api/errors";
 import { isLive, useSession } from "../stores/session";
 
@@ -29,7 +29,10 @@ export function AccountMenu() {
     if (!ready) return;
     if (!authenticated) {
       // Privy signed them out (or its session ran out), so ours goes too.
-      if (stored) clear();
+      if (stored) {
+        void deleteSession(stored.token).catch(() => {});
+        clear();
+      }
       return;
     }
     if (session || !identityToken || sent.current === identityToken) return;
@@ -37,12 +40,16 @@ export function AccountMenu() {
     mutate(identityToken);
   }, [ready, authenticated, identityToken, session, stored, clear, mutate]);
 
-  const signOut = async () => {
-    await logout();
-    sent.current = null;
-    swap.reset();
-    clear();
-  };
+  // The server session goes first: if that fails we stay signed in, so "signed out" always means it is gone.
+  const signOut = useMutation({
+    mutationFn: async () => {
+      if (stored) await deleteSession(stored.token);
+      await logout();
+      sent.current = null;
+      swap.reset();
+      clear();
+    },
+  });
 
   if (!ready) return null;
   if (!authenticated) {
@@ -65,7 +72,14 @@ export function AccountMenu() {
       ) : (
         <span className="meta">Signing in…</span>
       )}
-      <button onClick={signOut}>Sign out</button>
+      {signOut.isError && (
+        <span className="meta" role="alert">
+          We couldn't sign you out. Check your internet and try again.
+        </span>
+      )}
+      <button onClick={() => signOut.mutate()} disabled={signOut.isPending}>
+        {signOut.isPending ? "Signing out…" : "Sign out"}
+      </button>
     </div>
   );
 }

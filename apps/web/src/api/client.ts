@@ -51,3 +51,8 @@ export function apiPost<T>(path: string, body: unknown, schema: Schema<T>): Prom
     body: JSON.stringify(body),
   });
 }
+
+// For calls that answer with no body. The token is passed in because sign-out ends a session the store may already have dropped.
+export function apiDelete(path: string, token: string): Promise<void> {
+  return request(path, { parse: () => undefined }, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+}
