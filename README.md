@@ -694,7 +694,7 @@ The React app talks to the API server in two ways: normal HTTP requests (REST) f
 | `POST /me/linked-accounts/:provider` | Connect a music service to import taste | identity |
 | `POST /catalog/resolve` | Turn a pasted link into a recording, or return close matches | catalog |
 | `GET /catalog/search?q=` | Search our catalog and MusicBrainz | catalog |
-| `POST /drops` | Create a drop from a link or recording ID, plus a note | drops |
+| `POST /drops` | Create a drop from a link, plus a note | drops |
 | `GET /drops/:id` | One drop, with its recording and save count | drops |
 | `GET /feed?cursor=` | Drops from people you follow and your taste neighbours | drops |
 | `POST /drops/:id/save` | Save a drop (`DELETE` to unsave) | drops |
@@ -725,6 +725,12 @@ Response (`201 Created`):
   "saveCount": 0
 }
 ```
+
+When we can't tell which song a link is (a fan upload with no artist, say), the response is `422 RECORDING_UNCLEAR` and no drop is made.
+
+### Backlog
+
+- **Pick the song when a link is unclear.** Today such a link is turned away. `POST /catalog/resolve` already returns close matches for it, so the app could show them and let the user tap the right one, then create the drop from that recording (`POST /drops` would take a `recordingId` in place of `link`). The user only ever picks from a list; they never see or type an ID.
 
 ### WebSocket messages
 

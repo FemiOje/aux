@@ -1,4 +1,4 @@
-import type { Drop, FeedQuery, FeedResponse } from '@aux/shared'
+import type { CreateDrop, Drop, FeedQuery, FeedResponse, Me } from '@aux/shared'
 import { AppError } from '../../errors.js'
 import type { CatalogService } from '../catalog/index.js'
 import type { IdentityService } from '../identity/index.js'
@@ -7,7 +7,7 @@ import type { DropRepository, DropRow } from './repository.js'
 
 type Deps = {
   repository: DropRepository
-  catalog: Pick<CatalogService, 'getRecordings'>
+  catalog: Pick<CatalogService, 'getRecordings' | 'resolveLink'>
   identity: Pick<IdentityService, 'getHandles'>
 }
 
@@ -34,6 +34,22 @@ export function createDropService({ repository, catalog, identity }: Deps) {
   }
 
   return {
+    // Posting the same song again is allowed; each drop carries its own note.
+    async createDrop(curator: Pick<Me, 'id' | 'handle'>, input: CreateDrop): Promise<Drop> {
+      const { recording } = await catalog.resolveLink(input.link)
+      // The link could be several songs and we won't guess. Letting the user pick one is in the README backlog.
+      if (!recording) throw new AppError(422, 'RECORDING_UNCLEAR', "We couldn't tell which song that link is")
+      const row = await repository.insert({ userId: curator.id, recordingId: recording.id, note: input.note })
+      return {
+        id: row.id,
+        curator: { handle: curator.handle },
+        recording,
+        note: row.note,
+        saveCount: row.saveCount,
+        createdAt: row.createdAt.toISOString()
+      }
+    },
+
     // Every drop for now. Narrows to follows and taste neighbours once sign-in exists.
     async getFeed({ cursor, limit }: FeedQuery): Promise<FeedResponse> {
       const beforeId = cursor === undefined ? undefined : decodeCursor(cursor)

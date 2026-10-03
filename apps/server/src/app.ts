@@ -38,7 +38,12 @@ export function buildApp({
   const identity = createIdentityModule({ db, auth })
   catalog.register(app)
   identity.register(app)
-  createDropsModule({ db, catalog: catalog.service, identity: identity.service }).register(app)
+  createDropsModule({
+    db,
+    catalog: catalog.service,
+    identity: identity.service,
+    requireUser: identity.requireUser
+  }).register(app)
 
   return app
 }
