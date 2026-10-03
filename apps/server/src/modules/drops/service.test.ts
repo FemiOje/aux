@@ -9,17 +9,24 @@ const row = (id: number): DropRow => ({
   recordingId: 7,
   note: `note ${id}`,
   createdAt: new Date('2026-01-01T00:00:00Z'),
-  saveCount: 2
+  saveCount: 2,
+  saved: false
 })
 
 // Five drops, ids 5..1, served newest first like the real repository.
 function serviceOver(ids: number[]) {
   const rows = ids.map(row)
   const repository: DropRepository = {
-    findFeed: async (beforeId, limit) =>
+    findFeed: async (_viewerId, beforeId, limit) =>
       rows.filter((r) => beforeId === undefined || r.id < beforeId).slice(0, limit),
     findById: async (id) => rows.find((r) => r.id === id),
     insert: async () => {
+      throw new Error('not used')
+    },
+    insertSave: async () => {
+      throw new Error('not used')
+    },
+    deleteSave: async () => {
       throw new Error('not used')
     }
   }
@@ -81,6 +88,7 @@ describe('getFeed', () => {
       recording: { id: 7, title: 'Reckoner', artist: 'Radiohead', durationMs: 290000, tracks: [] },
       note: 'note 1',
       saveCount: 2,
+      saved: false,
       createdAt: '2026-01-01T00:00:00.000Z'
     })
   })

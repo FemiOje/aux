@@ -12,10 +12,10 @@ const RUN = Date.now()
 const DOMAIN = `${RUN}.auxdrops.dev`
 const ARTIST = `Drop Test Artist ${RUN}`
 
-// Stands in for Privy: any token signs in the one test curator.
+// Stands in for Privy: the token is the name of the test user it signs in.
 const auth: AuthPort = {
-  async verifyToken() {
-    return { subject: `did:privy:drops-${RUN}`, email: `curator_${RUN}@${DOMAIN}`, walletAddress: null }
+  async verifyToken(name) {
+    return { subject: `did:privy:drops-${name}-${RUN}`, email: `${name}_${RUN}@${DOMAIN}`, walletAddress: null }
   }
 }
 
@@ -38,14 +38,20 @@ const resolver: ResolvePort = {
 const app = buildApp({ logger: false, auth, resolvers: [resolver] })
 let token: string
 let curator: Me
+// A second user, so a save can be seen from the saver's side and from someone else's.
+let listenerToken: string
 
 const post = (payload: unknown, authorization: string | undefined = `Bearer ${token}`) =>
   app.inject({ method: 'POST', url: '/drops', payload: payload as object, headers: authorization ? { authorization } : {} })
 const countDrops = async () => (await db.select().from(drops).where(eq(drops.userId, curator.id))).length
 
 beforeAll(async () => {
-  const res = await app.inject({ method: 'POST', url: '/auth/session', payload: { token: 'any' } })
-  ;({ token, user: curator } = sessionResponseSchema.parse(res.json()))
+  const signIn = async (name: string) =>
+    sessionResponseSchema.parse(
+      (await app.inject({ method: 'POST', url: '/auth/session', payload: { token: name } })).json()
+    )
+  ;({ token, user: curator } = await signIn('curator'))
+  ;({ token: listenerToken } = await signIn('listener'))
 })
 
 afterAll(async () => {
@@ -71,7 +77,8 @@ describe('POST /drops', () => {
       curator: { handle: curator.handle },
       recording: { title: 'Konko Below', artist: 'Lagbaja' },
       note: 'Wait for the sax at 2:10.',
-      saveCount: 0
+      saveCount: 0,
+      saved: false
     })
 
     const fetched = await app.inject({ method: 'GET', url: `/drops/${drop.id}` })
@@ -131,6 +138,73 @@ describe('POST /drops', () => {
 
   it.each(['', 'Bearer nope'])('turns away authorization %j before looking at the body', async (authorization) => {
     const res = await post({ nonsense: true }, authorization)
+    expect(res.statusCode).toBe(401)
+    expect(res.json().error.code).toBe('UNAUTHENTICATED')
+  })
+})
+
+describe('saving a drop', () => {
+  let dropId: number
+
+  const bearer = (sessionToken: string | undefined) => (sessionToken ? { authorization: `Bearer ${sessionToken}` } : {})
+  const save = (method: 'POST' | 'DELETE', id: number | string, sessionToken: string | undefined = listenerToken) =>
+    app.inject({ method, url: `/drops/${id}/save`, headers: bearer(sessionToken) })
+  const getDrop = async (sessionToken?: string) =>
+    dropSchema.parse((await app.inject({ method: 'GET', url: `/drops/${dropId}`, headers: bearer(sessionToken) })).json())
+
+  beforeAll(async () => {
+    dropId = dropSchema.parse((await post({ link: 'https://fake.test/seeded', note: 'save me' })).json()).id
+  })
+
+  it('saves once, however many times it is asked', async () => {
+    const first = await save('POST', dropId)
+    expect(first.statusCode).toBe(200)
+    expect(dropSchema.parse(first.json())).toMatchObject({ id: dropId, saveCount: 1, saved: true })
+    expect(dropSchema.parse((await save('POST', dropId)).json())).toMatchObject({ saveCount: 1, saved: true })
+  })
+
+  it('shows the save only to the person who made it', async () => {
+    expect(await getDrop(listenerToken)).toMatchObject({ saveCount: 1, saved: true })
+    expect(await getDrop(token)).toMatchObject({ saveCount: 1, saved: false })
+    expect(await getDrop()).toMatchObject({ saveCount: 1, saved: false })
+
+    const feed = await app.inject({ method: 'GET', url: '/feed?limit=50', headers: bearer(listenerToken) })
+    expect(feedResponseSchema.parse(feed.json()).drops.find((d) => d.id === dropId)).toMatchObject({ saved: true })
+  })
+
+  it('unsaves, and unsaving again changes nothing', async () => {
+    const first = await save('DELETE', dropId)
+    expect(first.statusCode).toBe(200)
+    expect(dropSchema.parse(first.json())).toMatchObject({ id: dropId, saveCount: 0, saved: false })
+    expect(dropSchema.parse((await save('DELETE', dropId)).json())).toMatchObject({ saveCount: 0, saved: false })
+  })
+
+  it('lets you save your own drop', async () => {
+    expect(dropSchema.parse((await save('POST', dropId, token)).json())).toMatchObject({ saveCount: 1, saved: true })
+    expect(dropSchema.parse((await save('DELETE', dropId, token)).json())).toMatchObject({ saveCount: 0, saved: false })
+  })
+
+  it.each([
+    ['POST', '999999999'],
+    ['DELETE', '999999999'],
+    ['POST', 'abc'],
+    ['DELETE', 'abc']
+  ] as const)('answers %s for drop %s with 404', async (method, id) => {
+    const res = await save(method, id)
+    expect(res.statusCode).toBe(404)
+    expect(res.json().error.code).toBe('DROP_NOT_FOUND')
+  })
+
+  it.each(['POST', 'DELETE'] as const)('needs a session to %s', async (method) => {
+    const res = await save(method, dropId, 'nope')
+    expect(res.statusCode).toBe(401)
+    expect(res.json().error.code).toBe('UNAUTHENTICATED')
+  })
+})
+
+describe('reading drops with a session', () => {
+  it.each(['/feed', '/drops/1'])('turns away a session that is no longer good on GET %s', async (url) => {
+    const res = await app.inject({ method: 'GET', url, headers: { authorization: 'Bearer nope' } })
     expect(res.statusCode).toBe(401)
     expect(res.json().error.code).toBe('UNAUTHENTICATED')
   })
