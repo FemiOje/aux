@@ -233,7 +233,7 @@ We have 14 tables, grouped below by the module that owns them. Only the owning m
 
 `privy_user_id` is empty until the user's first sign-in. On first sign-in we match by Privy ID, then by email, and only then create a new user.
 
-**sessions**: one row per sign-in. `POST /auth/session` hands the browser a random token and stores only its SHA-256, so a leaked database can't be used to sign in. Sessions last 30 days, or until the user signs out, which deletes the row.
+**sessions**: one row per sign-in. `POST /auth/session` hands the browser a random token and stores only its SHA-256, so a leaked database can't be used to sign in. Sessions last 30 days, or until the user signs out, which deletes the row. Rows that have run out are rejected but not yet deleted (see the backlog).
 
 | id (bigint, PK) | user_id (FK → users) | token_hash (text, unique) | expires_at (timestamptz) |
 | --- | --- | --- | --- |
@@ -732,6 +732,7 @@ When we can't tell which song a link is (a fan upload with no artist, say), the 
 ### Backlog
 
 - **Pick the song when a link is unclear.** Today such a link is turned away. `POST /catalog/resolve` already returns close matches for it, so the app could show them and let the user tap the right one, then create the drop from that recording (`POST /drops` would take a `recordingId` in place of `link`). The user only ever picks from a list; they never see or type an ID.
+- **Delete expired sessions on a schedule.** A session that has run out is already rejected on every request, but its row stays in `sessions` forever. To implement: a scheduled job in the worker (nightly is enough) that deletes rows whose `expires_at` has passed, in batches, with an index on `sessions.expires_at` so the delete doesn't scan the whole table. This waits on the worker, which isn't built yet.
 
 ### WebSocket messages
 
