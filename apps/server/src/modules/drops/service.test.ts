@@ -18,13 +18,19 @@ function serviceOver(ids: number[]) {
   const repository: DropRepository = {
     findFeed: async (beforeId, limit) =>
       rows.filter((r) => beforeId === undefined || r.id < beforeId).slice(0, limit),
-    findById: async (id) => rows.find((r) => r.id === id)
+    findById: async (id) => rows.find((r) => r.id === id),
+    insert: async () => {
+      throw new Error('not used')
+    }
   }
   return createDropService({
     repository,
     catalog: {
       getRecordings: async () =>
-        new Map([[7, { id: 7, title: 'Reckoner', artist: 'Radiohead', durationMs: 290000, tracks: [] }]])
+        new Map([[7, { id: 7, title: 'Reckoner', artist: 'Radiohead', durationMs: 290000, tracks: [] }]]),
+      resolveLink: async () => {
+        throw new Error('not used')
+      }
     },
     identity: { getHandles: async () => new Map([[1, 'femi']]) }
   })
