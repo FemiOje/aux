@@ -695,7 +695,7 @@ The React app talks to the API server in two ways: normal HTTP requests (REST) f
 | `POST /me/linked-accounts/:provider` | Connect a music service to import taste | identity |
 | `POST /catalog/resolve` | Turn a pasted link into a recording, or return close matches | catalog |
 | `GET /catalog/search?q=` | Search our catalog and MusicBrainz | catalog |
-| `POST /drops` | Create a drop from a link, plus a note | drops |
+| `POST /drops` | Create a drop from a link (or from a recording picked out of an unclear link's close matches), plus a note | drops |
 | `GET /drops/:id` | One drop, with its recording, its save count and whether you saved it | drops |
 | `GET /feed?cursor=` | Drops from people you follow and your taste neighbours | drops |
 | `POST /drops/:id/save` | Save a drop (`DELETE` to unsave). Both answer with the drop | drops |
@@ -732,11 +732,16 @@ Response (`201 Created`):
 
 Saving twice counts once, and unsaving a drop you haven't saved changes nothing. You can save your own drop.
 
-When we can't tell which song a link is (a fan upload with no artist, say), the response is `422 RECORDING_UNCLEAR` and no drop is made.
+When we can't tell which song a link is (a fan upload with no artist, say), the response is `422 RECORDING_UNCLEAR` and no drop is made. The app then asks `POST /catalog/resolve` for the close matches and shows them; the user taps the right one, and the app posts again with `recordingId` in place of `link`:
+
+```json
+{ "recordingId": 3, "note": "Wait for the sax at 2:10." }
+```
+
+Send `link` or `recordingId`, never both (`400 INVALID_BODY`). A `recordingId` we don't have answers `404 RECORDING_NOT_FOUND`. The user only ever picks from a list; they never see or type an ID. With no close matches there is nothing to pick from, and the user is asked for a clearer link. Picking a song doesn't attach the link to it, so the same link is unclear again next time.
 
 ### Backlog
 
-- **Pick the song when a link is unclear.** Today such a link is turned away. `POST /catalog/resolve` already returns close matches for it, so the app could show them and let the user tap the right one, then create the drop from that recording (`POST /drops` would take a `recordingId` in place of `link`). The user only ever picks from a list; they never see or type an ID.
 - **Delete expired sessions on a schedule.** A session that has run out is already rejected on every request, but its row stays in `sessions` forever. To implement: a scheduled job in the worker (nightly is enough) that deletes rows whose `expires_at` has passed, in batches, with an index on `sessions.expires_at` so the delete doesn't scan the whole table. This waits on the worker, which isn't built yet.
 
 ### WebSocket messages

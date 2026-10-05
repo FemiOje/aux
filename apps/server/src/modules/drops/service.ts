@@ -1,4 +1,4 @@
-import type { CreateDrop, Drop, FeedQuery, FeedResponse, Me } from '@aux/shared'
+import type { CreateDrop, Drop, FeedQuery, FeedResponse, Me, Recording } from '@aux/shared'
 import { AppError } from '../../errors.js'
 import type { CatalogService } from '../catalog/index.js'
 import type { IdentityService } from '../identity/index.js'
@@ -42,12 +42,24 @@ export function createDropService({ repository, catalog, identity }: Deps) {
     return drop
   }
 
+  // The song a new drop is about: the one the link resolves to, or the one the user picked.
+  async function findRecording(input: CreateDrop): Promise<Recording> {
+    if ('recordingId' in input) {
+      const recording = (await catalog.getRecordings([input.recordingId])).get(input.recordingId)
+      if (!recording) throw new AppError(404, 'RECORDING_NOT_FOUND', `Recording ${input.recordingId} does not exist`)
+      return recording
+    }
+    const { recording } = await catalog.resolveLink(input.link)
+    // The link could be several songs and we won't guess. The app shows the close matches from
+    // POST /catalog/resolve and posts again with the recording the user picked.
+    if (!recording) throw new AppError(422, 'RECORDING_UNCLEAR', "We couldn't tell which song that link is")
+    return recording
+  }
+
   return {
     // Posting the same song again is allowed; each drop carries its own note.
     async createDrop(curator: Pick<Me, 'id' | 'handle'>, input: CreateDrop): Promise<Drop> {
-      const { recording } = await catalog.resolveLink(input.link)
-      // The link could be several songs and we won't guess. Letting the user pick one is in the README backlog.
-      if (!recording) throw new AppError(422, 'RECORDING_UNCLEAR', "We couldn't tell which song that link is")
+      const recording = await findRecording(input)
       const row = await repository.insert({ userId: curator.id, recordingId: recording.id, note: input.note })
       return {
         id: row.id,

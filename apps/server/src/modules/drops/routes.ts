@@ -19,7 +19,9 @@ export function registerDropRoutes(
   app.post('/drops', async (request, reply) => {
     const user = await requireUser(request)
     const body = createDropSchema.safeParse(request.body)
-    if (!body.success) throw new AppError(400, 'INVALID_BODY', 'Send a link and a note of 1 to 280 characters')
+    if (!body.success) {
+      throw new AppError(400, 'INVALID_BODY', 'Send a link and a note of 1 to 280 characters')
+    }
     reply.code(201)
     return service.createDrop(user, body.data)
   })

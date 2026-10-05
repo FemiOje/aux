@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { ResolveResponse } from '@aux/shared'
 import { decodeCursor, encodeCursor } from './cursor.js'
 import type { DropRepository, DropRow } from './repository.js'
 import { createDropService } from './service.js'
@@ -13,16 +14,16 @@ const row = (id: number): DropRow => ({
   saved: false
 })
 
+const reckoner = { id: 7, title: 'Reckoner', artist: 'Radiohead', durationMs: 290000, tracks: [] }
+
 // Five drops, ids 5..1, served newest first like the real repository.
-function serviceOver(ids: number[]) {
+function serviceOver(ids: number[], resolved: ResolveResponse = { recording: null, matches: [] }) {
   const rows = ids.map(row)
   const repository: DropRepository = {
     findFeed: async (_viewerId, beforeId, limit) =>
       rows.filter((r) => beforeId === undefined || r.id < beforeId).slice(0, limit),
     findById: async (id) => rows.find((r) => r.id === id),
-    insert: async () => {
-      throw new Error('not used')
-    },
+    insert: async ({ recordingId, note }) => ({ ...row(100), recordingId, note, saveCount: 0 }),
     insertSave: async () => {
       throw new Error('not used')
     },
@@ -33,11 +34,8 @@ function serviceOver(ids: number[]) {
   return createDropService({
     repository,
     catalog: {
-      getRecordings: async () =>
-        new Map([[7, { id: 7, title: 'Reckoner', artist: 'Radiohead', durationMs: 290000, tracks: [] }]]),
-      resolveLink: async () => {
-        throw new Error('not used')
-      }
+      getRecordings: async () => new Map([[7, reckoner]]),
+      resolveLink: async () => resolved
     },
     identity: { getHandles: async () => new Map([[1, 'femi']]) }
   })
@@ -90,6 +88,37 @@ describe('getFeed', () => {
       saveCount: 2,
       saved: false,
       createdAt: '2026-01-01T00:00:00.000Z'
+    })
+  })
+})
+
+describe('createDrop', () => {
+  const femi = { id: 1, handle: 'femi' }
+
+  it('uses the recording the link resolves to', async () => {
+    const service = serviceOver([], { recording: reckoner, matches: [] })
+    const drop = await service.createDrop(femi, { link: 'https://youtu.be/abc', note: 'from a link' })
+    expect(drop).toMatchObject({ curator: { handle: 'femi' }, recording: reckoner, note: 'from a link', saveCount: 0 })
+  })
+
+  it('uses the recording the user picked, without resolving anything', async () => {
+    // The stubbed resolver would answer "unclear", so a drop here proves it was never asked.
+    const drop = await serviceOver([]).createDrop(femi, { recordingId: 7, note: 'picked' })
+    expect(drop).toMatchObject({ curator: { handle: 'femi' }, recording: reckoner, note: 'picked' })
+  })
+
+  it('refuses a picked recording that is not in the catalog', async () => {
+    await expect(serviceOver([]).createDrop(femi, { recordingId: 8, note: 'gone' })).rejects.toMatchObject({
+      statusCode: 404,
+      code: 'RECORDING_NOT_FOUND'
+    })
+  })
+
+  it('refuses an unclear link even when there are close matches', async () => {
+    const service = serviceOver([], { recording: null, matches: [reckoner] })
+    await expect(service.createDrop(femi, { link: 'https://youtu.be/abc', note: 'which?' })).rejects.toMatchObject({
+      statusCode: 422,
+      code: 'RECORDING_UNCLEAR'
     })
   })
 })

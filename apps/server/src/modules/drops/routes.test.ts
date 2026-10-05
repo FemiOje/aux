@@ -1,7 +1,7 @@
 // Runs against the local Postgres with the seed loaded (pnpm db:seed). Removes the rows it adds.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { eq, inArray, like } from 'drizzle-orm'
-import { dropSchema, feedResponseSchema, sessionResponseSchema, type Me } from '@aux/shared'
+import { dropSchema, feedResponseSchema, resolveResponseSchema, sessionResponseSchema, type Me } from '@aux/shared'
 import { buildApp } from '../../app.js'
 import { db, pool } from '../../db/index.js'
 import { artists, drops, providerTracks, recordings, users } from '../../db/schema.js'
@@ -117,11 +117,41 @@ describe('POST /drops', () => {
     expect(await countDrops()).toBe(before)
   })
 
+  it('creates a drop from a close match of an unclear link', async () => {
+    const link = 'https://fake.test/unsure'
+    const resolved = await app.inject({ method: 'POST', url: '/catalog/resolve', payload: { link } })
+    const { recording, matches } = resolveResponseSchema.parse(resolved.json())
+    expect(recording).toBeNull()
+    const picked = matches.find((m) => m.artist === 'Radiohead')
+    expect(picked).toBeDefined()
+
+    const res = await post({ recordingId: picked!.id, note: 'This one.' })
+    expect(res.statusCode).toBe(201)
+    const drop = dropSchema.parse(res.json())
+    expect(drop).toMatchObject({ curator: { handle: curator.handle }, recording: picked, note: 'This one.', saved: false })
+
+    const fetched = await app.inject({ method: 'GET', url: `/drops/${drop.id}` })
+    expect(dropSchema.parse(fetched.json())).toEqual(drop)
+    // Picking a song says nothing about the link, so the link stays unclear for the next person.
+    expect((await post({ link, note: 'still unclear' })).statusCode).toBe(422)
+  })
+
+  it('trims the note of a picked song', async () => {
+    const res = await post({ recordingId: 1, note: '  picked \n' })
+    expect(dropSchema.parse(res.json()).note).toBe('picked')
+  })
+
   it.each([
     [{ link: 'https://open.spotify.com/track/abc', note: 'n' }, 422, 'UNSUPPORTED_LINK'],
     [{ link: 'https://fake.test/missing', note: 'n' }, 404, 'TRACK_NOT_FOUND'],
     [{ link: 'https://fake.test/down', note: 'n' }, 502, 'RESOLVER_UNAVAILABLE'],
-    [{ recordingId: 1, note: 'n' }, 400, 'INVALID_BODY'],
+    [{ recordingId: 999999999, note: 'n' }, 404, 'RECORDING_NOT_FOUND'],
+    [{ recordingId: 1, link: 'https://fake.test/seeded', note: 'n' }, 400, 'INVALID_BODY'],
+    [{ recordingId: '1', note: 'n' }, 400, 'INVALID_BODY'],
+    [{ recordingId: 0, note: 'n' }, 400, 'INVALID_BODY'],
+    [{ recordingId: 1.5, note: 'n' }, 400, 'INVALID_BODY'],
+    [{ recordingId: 1 }, 400, 'INVALID_BODY'],
+    [{ recordingId: 1, note: '   ' }, 400, 'INVALID_BODY'],
     [{ link: 'not a url', note: 'n' }, 400, 'INVALID_BODY'],
     [{ link: 'https://fake.test/seeded' }, 400, 'INVALID_BODY'],
     [{ link: 'https://fake.test/seeded', note: '   ' }, 400, 'INVALID_BODY'],

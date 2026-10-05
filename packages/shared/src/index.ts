@@ -1,9 +1,13 @@
 import { z } from "zod";
 
-export const createDropSchema = z.object({
-  link: z.url(),
-  note: z.string().trim().min(1).max(280),
-});
+const dropNoteSchema = z.string().trim().min(1).max(280);
+
+// A drop names its song by a pasted link, or by a recording picked from the close matches of an unclear link.
+// Exactly one of the two: sending both is refused.
+export const createDropSchema = z.xor([
+  z.object({ link: z.url(), note: dropNoteSchema }),
+  z.object({ recordingId: z.number().int().positive(), note: dropNoteSchema }),
+]);
 export type CreateDrop = z.infer<typeof createDropSchema>;
 
 export const providerTrackSchema = z.object({

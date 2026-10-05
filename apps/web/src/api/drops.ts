@@ -1,7 +1,15 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
-import { dropSchema, feedResponseSchema, type CreateDrop, type Drop, type FeedResponse } from "@aux/shared";
+import {
+  dropSchema,
+  feedResponseSchema,
+  resolveResponseSchema,
+  type CreateDrop,
+  type Drop,
+  type FeedResponse,
+  type Recording,
+} from "@aux/shared";
 import { isLive, useSession } from "../stores/session";
-import { apiGet, apiPost, apiSend } from "./client";
+import { ApiRequestError, apiGet, apiPost, apiSend } from "./client";
 
 // Drops come back with `saved` for whoever is signed in, so each user (and signed-out) gets their own cache.
 const useViewerId = () => useSession((s) => (isLive(s.session) ? s.session.user.id : null));
@@ -26,11 +34,33 @@ export function useDrop(id: string) {
   });
 }
 
+// How posting ended: with a drop, or with the songs the link might be, for the user to pick one.
+export type PostDropResult = { drop: Drop } | { matches: Recording[] };
+
+// Posts a drop. When the server can't tell which song a link is, asks it for the close matches instead.
+// With no close matches there is nothing to pick from, so the server's refusal stands.
+export async function postDrop(drop: CreateDrop): Promise<PostDropResult> {
+  try {
+    return { drop: await apiPost("/drops", drop, dropSchema) };
+  } catch (error) {
+    const unclear = error instanceof ApiRequestError && error.code === "RECORDING_UNCLEAR";
+    if (!unclear || !("link" in drop)) throw error;
+
+    const { recording, matches } = await apiPost("/catalog/resolve", { link: drop.link }, resolveResponseSchema);
+    // Someone added the song between our two requests, so the link is clear now.
+    if (recording) return postDrop({ recordingId: recording.id, note: drop.note });
+    if (matches.length === 0) throw error;
+    return { matches };
+  }
+}
+
 export function useCreateDrop() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (drop: CreateDrop) => apiPost("/drops", drop, dropSchema),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["feed"] }),
+    mutationFn: postDrop,
+    onSuccess: (result) => {
+      if ("drop" in result) return queryClient.invalidateQueries({ queryKey: ["feed"] });
+    },
   });
 }
 
