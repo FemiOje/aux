@@ -136,6 +136,23 @@ main {
   margin: 0;
 }
 
+.composer-choices,
+.composer-choices ul {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.composer-choices ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.composer-choices button {
+  width: 100%;
+  text-align: left;
+}
+
 .composer-footer {
   display: flex;
   justify-content: space-between;

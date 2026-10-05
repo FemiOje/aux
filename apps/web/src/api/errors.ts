@@ -6,6 +6,7 @@ const BY_CODE: Record<string, string> = {
   TRACK_NOT_FOUND: "We couldn't find a song at that link. Check it and try again.",
   RECORDING_UNCLEAR:
     "We couldn't tell which song that is. Try the official video, or a link from the artist's own channel.",
+  RECORDING_NOT_FOUND: "We can't find that song any more. Paste the link again.",
   RESOLVER_UNAVAILABLE: "We couldn't reach YouTube just now. Try again in a moment.",
   INVALID_BODY: "Something you entered doesn't look right. Check it and try again.",
   DROP_NOT_FOUND: "This drop doesn't exist, or it has been removed.",
