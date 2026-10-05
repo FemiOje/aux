@@ -3,6 +3,8 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  // The one .env lives at the repo root. Only VITE_* vars reach the browser.
+  envDir: "../..",
   server: {
     proxy: {
       "/api": {

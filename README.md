@@ -52,7 +52,7 @@ These words show up everywhere in the code, the database and this guide. Learn t
 | Provider | An outside music service or music data source | YouTube, Spotify, Apple Music, MusicBrainz |
 | Port | A TypeScript interface that says what an adapter must be able to do | `PlaybackPort` needs `play()` and `pause()` |
 | Adapter | A class that makes one provider fit one port | `YouTubePlayback` implements `PlaybackPort` |
-| Save | A user adds someone else's drop to their collection | Ada saves Femi's Lagbaja drop |
+| Save | A user adds a drop to their collection, usually someone else's | Ada saves Femi's Lagbaja drop |
 | Tip | A small payment sent with a save, paid on Monad to the curator | 0.5 MON to Femi |
 | Room | A live listening session where everyone hears the same song at the same time | "Friday night Afrobeat" room |
 | Taste neighbour | A user whose taste overlaps with yours enough to be interesting | You share 30% of artists with Tunde |
@@ -190,8 +190,8 @@ aux/
 │   │       ├── main-api.ts     Starts the API server
 │   │       ├── main-worker.ts  Starts the worker
 │   │       ├── modules/        identity/ catalog/ drops/ rooms/ taste/
-│   │       ├── ports/          Interfaces: ResolvePort, ImportPort
-│   │       ├── adapters/       musicbrainz/ songlink/ spotify/ lastfm/
+│   │       ├── ports/          Interfaces: ResolvePort, ImportPort, AuthPort
+│   │       ├── adapters/       musicbrainz/ songlink/ spotify/ lastfm/ privy/
 │   │       ├── jobs/           Background job handlers for pg-boss
 │   │       └── db/             schema.ts (Drizzle tables) and migrations/
 │   └── indexer/                Envio config and event handlers
@@ -217,7 +217,7 @@ A request always moves in one direction: **route → service → repository → 
 
 ## Database tables
 
-We have 13 tables, grouped below by the module that owns them. Only the owning module's `repository.ts` may write to its tables.
+We have 14 tables, grouped below by the module that owns them. Only the owning module's `repository.ts` may write to its tables.
 
 **How to read these:** each header shows the column name and its type. PK means primary key (the row's unique ID). FK means foreign key (it points at a row in another table). Every table also has a `created_at` column, left out here to save space. Long IDs and hashes are shortened with "…".
 
@@ -225,11 +225,19 @@ We have 13 tables, grouped below by the module that owns them. Only the owning m
 
 **users**: one row per person who signs up.
 
-| id (bigint, PK) | handle (text, unique) | email (text, unique) | wallet_address (text) | preferred_provider (text) |
-| --- | --- | --- | --- | --- |
-| 1 | femi | femi@example.com | 0x1a2b…9f01 | youtube |
-| 2 | ada | ada@example.com | 0x3c4d…7e22 | spotify |
-| 3 | tunde | tunde@example.com | 0x5e6f…5d33 | youtube |
+| id (bigint, PK) | handle (text, unique) | email (text, unique) | privy_user_id (text, unique) | wallet_address (text) | preferred_provider (text) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | femi | femi@example.com | did:privy:cm1f… | 0x1a2b…9f01 | youtube |
+| 2 | ada | ada@example.com | did:privy:cm2a… | 0x3c4d…7e22 | spotify |
+| 3 | tunde | tunde@example.com | none | 0x5e6f…5d33 | youtube |
+
+`privy_user_id` is empty until the user's first sign-in. On first sign-in we match by Privy ID, then by email, and only then create a new user.
+
+**sessions**: one row per sign-in. `POST /auth/session` hands the browser a random token and stores only its SHA-256, so a leaked database can't be used to sign in. Sessions last 30 days, or until the user signs out, which deletes the row. Rows that have run out are rejected but not yet deleted (see the backlog).
+
+| id (bigint, PK) | user_id (FK → users) | token_hash (text, unique) | expires_at (timestamptz) |
+| --- | --- | --- | --- |
+| 1 | 1 | 9f86d0…0a08 | 2026-11-02 |
 
 **linked_accounts**: music services a user has connected, used only to import their taste. Tokens are always encrypted.
 
@@ -285,7 +293,7 @@ Notice that YouTube's copy of Konko Below is 3 seconds longer than our recording
 | 2 | 2 | 1 | Put this on at night with headphones. | 1 |
 | 3 | 3 | 2 | The drums in the second half. | (empty: not onchain yet) |
 
-**saves**: a user keeps someone else's drop. `(drop_id, user_id)` is unique, so each person saves a drop once.
+**saves**: a user keeps a drop, their own included. `(drop_id, user_id)` is unique, so each person saves a drop once.
 
 | id (bigint, PK) | drop_id (FK → drops) | user_id (FK → users) |
 | --- | --- | --- |
@@ -679,6 +687,7 @@ The React app talks to the API server in two ways: normal HTTP requests (REST) f
 | Method and path | What it does | Module |
 | --- | --- | --- |
 | `POST /auth/session` | Swaps a Privy sign-in token for our session. Creates the user on first sign-in | identity |
+| `DELETE /auth/session` | Signs out: deletes the session the request was sent with | identity |
 | `GET /me` | The signed-in user's profile | identity |
 | `PATCH /me` | Change handle or preferred music service | identity |
 | `GET /users/:handle` | A user's public profile and drops | identity |
@@ -686,10 +695,10 @@ The React app talks to the API server in two ways: normal HTTP requests (REST) f
 | `POST /me/linked-accounts/:provider` | Connect a music service to import taste | identity |
 | `POST /catalog/resolve` | Turn a pasted link into a recording, or return close matches | catalog |
 | `GET /catalog/search?q=` | Search our catalog and MusicBrainz | catalog |
-| `POST /drops` | Create a drop from a link or recording ID, plus a note | drops |
-| `GET /drops/:id` | One drop, with its recording and save count | drops |
+| `POST /drops` | Create a drop from a link, plus a note | drops |
+| `GET /drops/:id` | One drop, with its recording, its save count and whether you saved it | drops |
 | `GET /feed?cursor=` | Drops from people you follow and your taste neighbours | drops |
-| `POST /drops/:id/save` | Save a drop (`DELETE` to unsave) | drops |
+| `POST /drops/:id/save` | Save a drop (`DELETE` to unsave). Both answer with the drop | drops |
 | `GET /me/neighbours` | Your taste neighbours | taste |
 | `POST /rooms` | Start a live room | rooms |
 | `GET /rooms/:id` | A room's current state and members | rooms |
@@ -714,9 +723,21 @@ Response (`201 Created`):
   "curator": { "handle": "femi" },
   "recording": { "id": 3, "title": "Konko Below", "artist": "Lagbaja" },
   "note": "Wait for the sax at 2:10.",
-  "saveCount": 0
+  "saveCount": 0,
+  "saved": false
 }
 ```
+
+`saved` says whether the person asking has saved the drop. `GET /feed` and `GET /drops/:id` work signed out, where it is always `false`; send the session token to get your own.
+
+Saving twice counts once, and unsaving a drop you haven't saved changes nothing. You can save your own drop.
+
+When we can't tell which song a link is (a fan upload with no artist, say), the response is `422 RECORDING_UNCLEAR` and no drop is made.
+
+### Backlog
+
+- **Pick the song when a link is unclear.** Today such a link is turned away. `POST /catalog/resolve` already returns close matches for it, so the app could show them and let the user tap the right one, then create the drop from that recording (`POST /drops` would take a `recordingId` in place of `link`). The user only ever picks from a list; they never see or type an ID.
+- **Delete expired sessions on a schedule.** A session that has run out is already rejected on every request, but its row stays in `sessions` forever. To implement: a scheduled job in the worker (nightly is enough) that deletes rows whose `expires_at` has passed, in batches, with an index on `sessions.expires_at` so the delete doesn't scan the whole table. This waits on the worker, which isn't built yet.
 
 ### WebSocket messages
 

@@ -20,8 +20,21 @@ export const users = pgTable('users', {
   id: id(),
   handle: text('handle').notNull().unique(),
   email: text('email').notNull().unique(),
+  // Privy's ID for this person. Null until their first sign-in (seeded users start without one).
+  privyUserId: text('privy_user_id').unique(),
   walletAddress: text('wallet_address'),
   preferredProvider: text('preferred_provider').notNull().default('youtube'),
+  createdAt: createdAt()
+})
+
+// The token itself is never stored, only its SHA-256.
+export const sessions = pgTable('sessions', {
+  id: id(),
+  userId: bigint('user_id', { mode: 'number' })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   createdAt: createdAt()
 })
 
