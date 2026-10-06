@@ -17,11 +17,19 @@ const row = (id: number): DropRow => ({
 const reckoner = { id: 7, title: 'Reckoner', artist: 'Radiohead', durationMs: 290000, tracks: [] }
 
 // Five drops, ids 5..1, served newest first like the real repository.
-function serviceOver(ids: number[], resolved: ResolveResponse = { recording: null, matches: [] }) {
+// savedIds are the drops user 1 saved, most recent first; a drop's save id is its place from the end, times 100.
+function serviceOver(
+  ids: number[],
+  resolved: ResolveResponse = { recording: null, matches: [] },
+  savedIds: number[] = []
+) {
   const rows = ids.map(row)
+  const savedRows = savedIds.map((id, i) => ({ ...row(id), saved: true, saveId: (savedIds.length - i) * 100 }))
   const repository: DropRepository = {
     findFeed: async (_viewerId, beforeId, limit) =>
       rows.filter((r) => beforeId === undefined || r.id < beforeId).slice(0, limit),
+    findSaved: async (_userId, beforeSaveId, limit) =>
+      savedRows.filter((r) => beforeSaveId === undefined || r.saveId < beforeSaveId).slice(0, limit),
     findById: async (id) => rows.find((r) => r.id === id),
     insert: async ({ recordingId, note }) => ({ ...row(100), recordingId, note, saveCount: 0 }),
     insertSave: async () => {
@@ -89,6 +97,38 @@ describe('getFeed', () => {
       saved: false,
       createdAt: '2026-01-01T00:00:00.000Z'
     })
+  })
+})
+
+describe('getSaved', () => {
+  // Saved in an order unlike the drops' own, so paging by drop id would skip or repeat some.
+  const savedIds = [2, 5, 1, 4, 3]
+
+  it('pages through every saved drop once, in the order they were saved', async () => {
+    const service = serviceOver([5, 4, 3, 2, 1], undefined, savedIds)
+    const seen: number[] = []
+    let cursor: string | undefined
+    let pages = 0
+
+    do {
+      const page = await service.getSaved({ id: 1 }, { cursor, limit: 2 })
+      seen.push(...page.drops.map((d) => d.id))
+      cursor = page.nextCursor ?? undefined
+      pages++
+    } while (cursor)
+
+    expect(seen).toEqual(savedIds)
+    expect(pages).toBe(3)
+  })
+
+  it('has no next cursor when the page exactly fits', async () => {
+    const page = await serviceOver([2, 1], undefined, [1, 2]).getSaved({ id: 1 }, { limit: 2 })
+    expect(page.drops.map((d) => d.id)).toEqual([1, 2])
+    expect(page.nextCursor).toBeNull()
+  })
+
+  it('is empty when nothing is saved', async () => {
+    expect(await serviceOver([1]).getSaved({ id: 1 }, { limit: 20 })).toEqual({ drops: [], nextCursor: null })
   })
 })
 

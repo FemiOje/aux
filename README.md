@@ -699,6 +699,7 @@ The React app talks to the API server in two ways: normal HTTP requests (REST) f
 | `GET /drops/:id` | One drop, with its recording, its save count and whether you saved it | drops |
 | `GET /feed?cursor=` | Drops from people you follow and your taste neighbours | drops |
 | `POST /drops/:id/save` | Save a drop (`DELETE` to unsave). Both answer with the drop | drops |
+| `GET /me/saved?cursor=` | The drops you saved, most recently saved first. Needs a session | drops |
 | `GET /me/neighbours` | Your taste neighbours | taste |
 | `POST /rooms` | Start a live room | rooms |
 | `GET /rooms/:id` | A room's current state and members | rooms |

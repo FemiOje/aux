@@ -33,6 +33,14 @@ export function registerDropRoutes(
     return service.getFeed(query.data, viewer?.id)
   })
 
+  // Pages the same way as the feed.
+  app.get('/me/saved', async (request) => {
+    const user = await requireUser(request)
+    const query = feedQuerySchema.safeParse(request.query)
+    if (!query.success) throw new AppError(400, 'INVALID_QUERY', 'limit must be between 1 and 50')
+    return service.getSaved(user, query.data)
+  })
+
   app.get('/drops/:id', async (request) => {
     const id = dropId(request.params)
     const viewer = await optionalUser(request)

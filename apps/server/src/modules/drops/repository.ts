@@ -12,6 +12,9 @@ export type DropRow = {
   saved: boolean
 }
 
+// A drop someone saved. saveId orders the list and pages it.
+export type SavedDropRow = DropRow & { saveId: number }
+
 export function createDropRepository(db: typeof Db) {
   // viewerId is who is looking, so `saved` can say whether they saved the drop. Nobody signed in means false.
   const columns = (viewerId: number | undefined) => ({
@@ -40,6 +43,17 @@ export function createDropRepository(db: typeof Db) {
         .from(drops)
         .where(beforeId === undefined ? undefined : lt(drops.id, beforeId))
         .orderBy(desc(drops.id))
+        .limit(limit)
+    },
+
+    // The drops this user saved, most recently saved first. save ids are increasing, so id order is save order.
+    async findSaved(userId: number, beforeSaveId: number | undefined, limit: number): Promise<SavedDropRow[]> {
+      return db
+        .select({ ...columns(userId), saveId: saves.id })
+        .from(saves)
+        .innerJoin(drops, eq(drops.id, saves.dropId))
+        .where(and(eq(saves.userId, userId), beforeSaveId === undefined ? undefined : lt(saves.id, beforeSaveId)))
+        .orderBy(desc(saves.id))
         .limit(limit)
     },
 

@@ -25,6 +25,19 @@ export function useFeed() {
   });
 }
 
+// The drops the signed-in user saved, most recently saved first. Asks for nothing while signed out.
+export function useSaved() {
+  const viewerId = useViewerId();
+  return useInfiniteQuery({
+    queryKey: ["saved", viewerId],
+    queryFn: ({ pageParam }) =>
+      apiGet(pageParam ? `/me/saved?cursor=${encodeURIComponent(pageParam)}` : "/me/saved", feedResponseSchema),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    enabled: viewerId !== null,
+  });
+}
+
 export function useDrop(id: string) {
   const viewerId = useViewerId();
   return useQuery({
@@ -64,7 +77,7 @@ export function useCreateDrop() {
   });
 }
 
-// The feed with one drop swapped for a newer copy of itself.
+// A list of drops (the feed, or the saved list) with one drop swapped for a newer copy of itself.
 export function withDrop(
   feed: InfiniteData<FeedResponse> | undefined,
   drop: Drop,
@@ -85,6 +98,9 @@ export function useToggleSave() {
     mutationFn: (drop: Drop) => apiSend(drop.saved ? "DELETE" : "POST", `/drops/${drop.id}/save`, dropSchema),
     onSuccess: (drop) => {
       queryClient.setQueryData<InfiniteData<FeedResponse>>(["feed", viewerId], (feed) => withDrop(feed, drop));
+      // An unsaved drop stays on the saved list, with its Save button, until the list is next loaded.
+      // That leaves a mis-tap one tap away from being undone.
+      queryClient.setQueryData<InfiniteData<FeedResponse>>(["saved", viewerId], (saved) => withDrop(saved, drop));
       queryClient.setQueryData(["drop", String(drop.id), viewerId], drop);
     },
   });

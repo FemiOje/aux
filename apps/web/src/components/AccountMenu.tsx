@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useIdentityToken, useLogin, usePrivy } from "@privy-io/react-auth";
 import { useMutation } from "@tanstack/react-query";
+import { Link } from "react-router";
 import { createSession, deleteSession } from "../api/auth";
 import { friendlyError } from "../api/errors";
 import { isLive, useSession } from "../stores/session";
@@ -63,7 +64,10 @@ export function AccountMenu() {
   return (
     <div className="account">
       {session ? (
-        <span>@{session.user.handle}</span>
+        <>
+          <Link to="/saved">Saved</Link>
+          <span>@{session.user.handle}</span>
+        </>
       ) : swap.isError ? (
         <>
           <span className="meta">{friendlyError(swap.error)}</span>

@@ -39,6 +39,12 @@ header a {
   text-decoration: none;
 }
 
+header .account a {
+  font-size: inherit;
+  font-weight: inherit;
+  text-decoration: underline;
+}
+
 main {
   /* Room for the fixed now-playing bar. */
   padding-bottom: 14rem;
