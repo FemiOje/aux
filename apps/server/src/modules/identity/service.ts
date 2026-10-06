@@ -1,11 +1,10 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
-import type { Me, SessionResponse } from '@aux/shared'
+import { HANDLE_MAX, type Me, type Profile, type SessionResponse, type UpdateMe } from '@aux/shared'
 import { AppError } from '../../errors.js'
 import type { AuthIdentity, AuthPort } from '../../ports/auth.js'
-import type { IdentityRepository, UserRow } from './repository.js'
+import type { IdentityRepository, UserPatch, UserRow } from './repository.js'
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000
-const HANDLE_MAX = 20
 const HANDLE_ATTEMPTS = 5
 
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex')
@@ -26,6 +25,19 @@ const toMe = (user: UserRow): Me => ({
 })
 
 export function createIdentityService(repository: IdentityRepository, auth: AuthPort) {
+  // Only ever changes the wallet or the Privy ID, so there is always a row back.
+  async function linkUser(id: number, patch: Pick<UserPatch, 'privyUserId' | 'walletAddress'>): Promise<UserRow> {
+    const updated = await repository.updateUser(id, patch)
+    if (!updated) throw new Error(`user ${id} is gone`)
+    return updated
+  }
+
+  async function findByHandle(handle: string): Promise<UserRow> {
+    const user = await repository.findUserByHandle(handle)
+    if (!user) throw new AppError(404, 'USER_NOT_FOUND', `No user with the handle ${handle}`)
+    return user
+  }
+
   async function createUser(identity: AuthIdentity, email: string): Promise<UserRow> {
     const base = handleFromEmail(email)
     for (let attempt = 0; attempt < HANDLE_ATTEMPTS; attempt++) {
@@ -50,7 +62,7 @@ export function createIdentityService(repository: IdentityRepository, auth: Auth
     const known = await repository.findUserByPrivyId(identity.subject)
     if (known) {
       // The wallet can be made after the first sign-in.
-      return wallet && wallet !== known.walletAddress ? repository.updateUser(known.id, { walletAddress: wallet }) : known
+      return wallet && wallet !== known.walletAddress ? linkUser(known.id, { walletAddress: wallet }) : known
     }
 
     if (!identity.email) throw new AppError(422, 'EMAIL_REQUIRED', 'Add an email address to sign in')
@@ -61,7 +73,7 @@ export function createIdentityService(repository: IdentityRepository, auth: Auth
       // Created by this same person's other request between our two lookups.
       if (byEmail.privyUserId === identity.subject) return byEmail
       if (byEmail.privyUserId) throw new AppError(409, 'EMAIL_TAKEN', 'That email belongs to another account')
-      return repository.updateUser(byEmail.id, {
+      return linkUser(byEmail.id, {
         privyUserId: identity.subject,
         walletAddress: wallet ?? byEmail.walletAddress
       })
@@ -97,6 +109,24 @@ export function createIdentityService(repository: IdentityRepository, auth: Auth
     async authenticate(sessionToken: string): Promise<Me | null> {
       const user = await repository.findUserBySessionHash(hashToken(sessionToken), new Date())
       return user ? toMe(user) : null
+    },
+
+    // Changes the handle, the preferred music service, or both. Drops follow the user, so they show the new handle.
+    // The old handle is free for anyone to take straight away.
+    async updateMe(user: Pick<Me, 'id'>, patch: UpdateMe): Promise<Me> {
+      const updated = await repository.updateUser(user.id, patch)
+      if (!updated) throw new AppError(409, 'HANDLE_TAKEN', `The handle ${patch.handle} is taken`)
+      return toMe(updated)
+    },
+
+    async getProfile(handle: string): Promise<Profile> {
+      const user = await findByHandle(handle)
+      return { handle: user.handle, createdAt: user.createdAt.toISOString() }
+    },
+
+    // For other modules that list things by user. 404s like getProfile when nobody has the handle.
+    async getUserId(handle: string): Promise<number> {
+      return (await findByHandle(handle)).id
     },
 
     // Ends this one session. The user's other devices stay signed in.

@@ -84,6 +84,40 @@ export const meSchema = z.object({
 });
 export type Me = z.infer<typeof meSchema>;
 
+export const HANDLE_MIN = 3;
+export const HANDLE_MAX = 20;
+
+// A handle someone picks for themselves: lowercase letters, numbers and underscores.
+// Typed capitals are lowered, so "Femi" and "femi" are the same handle.
+export const handleSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(new RegExp(`^[a-z0-9_]{${HANDLE_MIN},${HANDLE_MAX}}$`));
+
+export const PROVIDERS = ["youtube", "spotify"] as const;
+
+// Send the fields to change, at least one. Anything else (email, wallet) can't be changed here and is refused.
+export const updateMeSchema = z
+  .strictObject({
+    handle: handleSchema.optional(),
+    preferredProvider: z.enum(PROVIDERS).optional(),
+  })
+  .refine((patch) => patch.handle !== undefined || patch.preferredProvider !== undefined);
+export type UpdateMe = z.infer<typeof updateMeSchema>;
+
+// What anyone can see about a user. Email and wallet stay private.
+export const profileSchema = z.object({
+  handle: z.string(),
+  createdAt: z.iso.datetime(),
+});
+export type Profile = z.infer<typeof profileSchema>;
+
+// Looser than handleSchema: handles made at sign-in can be shorter or longer than one you may pick.
+export const userParamsSchema = z.object({
+  handle: z.string().trim().toLowerCase().min(1).max(64),
+});
+
 // `token` is our session token: send it back as `Authorization: Bearer <token>`.
 export const sessionResponseSchema = z.object({
   token: z.string(),

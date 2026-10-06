@@ -690,7 +690,8 @@ The React app talks to the API server in two ways: normal HTTP requests (REST) f
 | `DELETE /auth/session` | Signs out: deletes the session the request was sent with | identity |
 | `GET /me` | The signed-in user's profile | identity |
 | `PATCH /me` | Change handle or preferred music service | identity |
-| `GET /users/:handle` | A user's public profile and drops | identity |
+| `GET /users/:handle` | A user's public profile | identity |
+| `GET /users/:handle/drops` | The drops a user posted, paged like the feed | drops |
 | `POST /users/:handle/follow` | Follow someone (`DELETE` to unfollow) | identity |
 | `POST /me/linked-accounts/:provider` | Connect a music service to import taste | identity |
 | `POST /catalog/resolve` | Turn a pasted link into a recording, or return close matches | catalog |

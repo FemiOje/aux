@@ -52,6 +52,14 @@ export function apiPost<T>(path: string, body: unknown, schema: Schema<T>): Prom
   });
 }
 
+export function apiPatch<T>(path: string, body: unknown, schema: Schema<T>): Promise<T> {
+  return request(path, schema, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 // For calls that say everything in the method and path, like saving a drop.
 export function apiSend<T>(method: "POST" | "DELETE", path: string, schema: Schema<T>): Promise<T> {
   return request(path, schema, { method });

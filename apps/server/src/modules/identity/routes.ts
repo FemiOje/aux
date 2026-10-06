@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
-import { sessionRequestSchema, type Me } from '@aux/shared'
+import { HANDLE_MAX, HANDLE_MIN, sessionRequestSchema, updateMeSchema, userParamsSchema, type Me } from '@aux/shared'
 import { AppError } from '../../errors.js'
 import type { IdentityService } from './service.js'
 
@@ -40,4 +40,24 @@ export function registerIdentityRoutes(app: FastifyInstance, service: IdentitySe
   })
 
   app.get('/me', async (request) => requireUser(request))
+
+  app.patch('/me', async (request) => {
+    const user = await requireUser(request)
+    const body = updateMeSchema.safeParse(request.body)
+    if (!body.success) {
+      throw new AppError(
+        400,
+        'INVALID_BODY',
+        `Send a handle of ${HANDLE_MIN} to ${HANDLE_MAX} letters, numbers or underscores, or a preferredProvider`
+      )
+    }
+    return service.updateMe(user, body.data)
+  })
+
+  // Public: anyone can look at a profile, signed in or not.
+  app.get('/users/:handle', async (request) => {
+    const params = userParamsSchema.safeParse(request.params)
+    if (!params.success) throw new AppError(404, 'USER_NOT_FOUND', 'User does not exist')
+    return service.getProfile(params.data.handle)
+  })
 }

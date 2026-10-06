@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ResolveResponse } from '@aux/shared'
+import { AppError } from '../../errors.js'
 import { decodeCursor, encodeCursor } from './cursor.js'
 import type { DropRepository, DropRow } from './repository.js'
 import { createDropService } from './service.js'
@@ -28,6 +29,8 @@ function serviceOver(
   const repository: DropRepository = {
     findFeed: async (_viewerId, beforeId, limit) =>
       rows.filter((r) => beforeId === undefined || r.id < beforeId).slice(0, limit),
+    findByCurator: async (curatorId, _viewerId, beforeId, limit) =>
+      rows.filter((r) => r.userId === curatorId && (beforeId === undefined || r.id < beforeId)).slice(0, limit),
     findSaved: async (_userId, beforeSaveId, limit) =>
       savedRows.filter((r) => beforeSaveId === undefined || r.saveId < beforeSaveId).slice(0, limit),
     findById: async (id) => rows.find((r) => r.id === id),
@@ -45,7 +48,14 @@ function serviceOver(
       getRecordings: async () => new Map([[7, reckoner]]),
       resolveLink: async () => resolved
     },
-    identity: { getHandles: async () => new Map([[1, 'femi']]) }
+    identity: {
+      getHandles: async () => new Map([[1, 'femi']]),
+      getUserId: async (handle) => {
+        if (handle === 'femi') return 1
+        if (handle === 'ada') return 2
+        throw new AppError(404, 'USER_NOT_FOUND', 'nobody')
+      }
+    }
   })
 }
 
@@ -129,6 +139,36 @@ describe('getSaved', () => {
 
   it('is empty when nothing is saved', async () => {
     expect(await serviceOver([1]).getSaved({ id: 1 }, { limit: 20 })).toEqual({ drops: [], nextCursor: null })
+  })
+})
+
+describe('getDropsBy', () => {
+  it('pages through every drop of that person once, then stops', async () => {
+    const service = serviceOver([5, 4, 3, 2, 1])
+    const seen: number[] = []
+    let cursor: string | undefined
+    let pages = 0
+
+    do {
+      const page = await service.getDropsBy('femi', { cursor, limit: 2 })
+      seen.push(...page.drops.map((d) => d.id))
+      cursor = page.nextCursor ?? undefined
+      pages++
+    } while (cursor)
+
+    expect(seen).toEqual([5, 4, 3, 2, 1])
+    expect(pages).toBe(3)
+  })
+
+  it('is empty for someone who has not posted', async () => {
+    expect(await serviceOver([2, 1]).getDropsBy('ada', { limit: 20 })).toEqual({ drops: [], nextCursor: null })
+  })
+
+  it('throws USER_NOT_FOUND for a handle nobody has', async () => {
+    await expect(serviceOver([1]).getDropsBy('nobody', { limit: 20 })).rejects.toMatchObject({
+      statusCode: 404,
+      code: 'USER_NOT_FOUND'
+    })
   })
 })
 

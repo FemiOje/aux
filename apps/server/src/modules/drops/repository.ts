@@ -46,6 +46,21 @@ export function createDropRepository(db: typeof Db) {
         .limit(limit)
     },
 
+    // One curator's drops, newest first. Pages like the feed.
+    async findByCurator(
+      curatorId: number,
+      viewerId: number | undefined,
+      beforeId: number | undefined,
+      limit: number
+    ): Promise<DropRow[]> {
+      return db
+        .select(columns(viewerId))
+        .from(drops)
+        .where(and(eq(drops.userId, curatorId), beforeId === undefined ? undefined : lt(drops.id, beforeId)))
+        .orderBy(desc(drops.id))
+        .limit(limit)
+    },
+
     // The drops this user saved, most recently saved first. save ids are increasing, so id order is save order.
     async findSaved(userId: number, beforeSaveId: number | undefined, limit: number): Promise<SavedDropRow[]> {
       return db

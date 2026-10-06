@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import type { Drop } from "@aux/shared";
+import { profilePath } from "../api/users";
 import { PlayButton } from "./PlayButton";
 import { SaveButton } from "./SaveButton";
 
@@ -14,7 +15,7 @@ export function DropCard({ drop }: { drop: Drop }) {
         <p className="artist">{drop.recording.artist}</p>
         <p className="note">“{drop.note}”</p>
         <p className="meta">
-          @{drop.curator.handle} · {drop.saveCount} {drop.saveCount === 1 ? "save" : "saves"}
+          <Link to={profilePath(drop.curator.handle)}>@{drop.curator.handle}</Link> · {drop.saveCount} {drop.saveCount === 1 ? "save" : "saves"}
         </p>
         <SaveButton drop={drop} />
       </div>

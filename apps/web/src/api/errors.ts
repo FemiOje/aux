@@ -10,6 +10,8 @@ const BY_CODE: Record<string, string> = {
   RESOLVER_UNAVAILABLE: "We couldn't reach YouTube just now. Try again in a moment.",
   INVALID_BODY: "Something you entered doesn't look right. Check it and try again.",
   DROP_NOT_FOUND: "This drop doesn't exist, or it has been removed.",
+  USER_NOT_FOUND: "We can't find anyone with that handle.",
+  HANDLE_TAKEN: "Someone already has that handle. Try another one.",
   UNAUTHENTICATED: "Your session ran out. Try again in a moment, or sign in again.",
   INVALID_TOKEN: "We couldn't sign you in. Try again.",
   AUTH_UNAVAILABLE: "Sign-in isn't working right now. Try again in a moment.",

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { createDropSchema, dropParamsSchema, feedQuerySchema } from '@aux/shared'
+import { createDropSchema, dropParamsSchema, feedQuerySchema, userParamsSchema } from '@aux/shared'
 import { AppError } from '../../errors.js'
 import type { OptionalUser, RequireUser } from '../identity/index.js'
 import type { DropService } from './service.js'
@@ -39,6 +39,16 @@ export function registerDropRoutes(
     const query = feedQuerySchema.safeParse(request.query)
     if (!query.success) throw new AppError(400, 'INVALID_QUERY', 'limit must be between 1 and 50')
     return service.getSaved(user, query.data)
+  })
+
+  // The drops on someone's profile. Pages the same way as the feed.
+  app.get('/users/:handle/drops', async (request) => {
+    const params = userParamsSchema.safeParse(request.params)
+    if (!params.success) throw new AppError(404, 'USER_NOT_FOUND', 'User does not exist')
+    const query = feedQuerySchema.safeParse(request.query)
+    if (!query.success) throw new AppError(400, 'INVALID_QUERY', 'limit must be between 1 and 50')
+    const viewer = await optionalUser(request)
+    return service.getDropsBy(params.data.handle, query.data, viewer?.id)
   })
 
   app.get('/drops/:id', async (request) => {

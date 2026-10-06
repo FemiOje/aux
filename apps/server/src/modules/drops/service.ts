@@ -8,7 +8,7 @@ import type { DropRepository, DropRow } from './repository.js'
 type Deps = {
   repository: DropRepository
   catalog: Pick<CatalogService, 'getRecordings' | 'resolveLink'>
-  identity: Pick<IdentityService, 'getHandles'>
+  identity: Pick<IdentityService, 'getHandles' | 'getUserId'>
 }
 
 export function createDropService({ repository, catalog, identity }: Deps) {
@@ -85,6 +85,18 @@ export function createDropService({ repository, catalog, identity }: Deps) {
     },
 
     getDrop,
+
+    // The drops this person posted, newest first. Pages like the feed. 404 USER_NOT_FOUND when nobody has the handle.
+    async getDropsBy(handle: string, { cursor, limit }: FeedQuery, viewerId?: number): Promise<FeedResponse> {
+      const beforeId = cursor === undefined ? undefined : decodeCursor(cursor)
+      const curatorId = await identity.getUserId(handle)
+      const rows = await repository.findByCurator(curatorId, viewerId, beforeId, limit + 1)
+      const page = rows.slice(0, limit)
+      return {
+        drops: await toDrops(page),
+        nextCursor: rows.length > limit ? encodeCursor(page[page.length - 1].id) : null
+      }
+    },
 
     // The drops this user saved, most recently saved first. The cursor is a save, not a drop.
     async getSaved(user: Pick<Me, 'id'>, { cursor, limit }: FeedQuery): Promise<FeedResponse> {

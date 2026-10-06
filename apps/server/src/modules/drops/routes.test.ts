@@ -300,6 +300,109 @@ describe('GET /me/saved', () => {
   })
 })
 
+describe('GET /users/:handle/drops', () => {
+  const bearer = (sessionToken: string) => ({ authorization: `Bearer ${sessionToken}` })
+  const signIn = async (name: string) =>
+    sessionResponseSchema.parse(
+      (await app.inject({ method: 'POST', url: '/auth/session', payload: { token: name } })).json()
+    )
+  const getDropsBy = async (handle: string, query = '', sessionToken?: string) =>
+    feedResponseSchema.parse(
+      (
+        await app.inject({
+          method: 'GET',
+          url: `/users/${handle}/drops${query}`,
+          headers: sessionToken ? bearer(sessionToken) : {}
+        })
+      ).json()
+    )
+
+  // Someone with exactly three drops, so the list can be checked whole.
+  let poster: Me
+  let posterToken: string
+  let dropIds: number[]
+
+  beforeAll(async () => {
+    ;({ token: posterToken, user: poster } = await signIn('poster'))
+    dropIds = []
+    for (const note of ['first', 'second', 'third']) {
+      const res = await post({ link: 'https://fake.test/seeded', note }, `Bearer ${posterToken}`)
+      dropIds.push(dropSchema.parse(res.json()).id)
+    }
+  })
+
+  afterAll(async () => {
+    await db.delete(drops).where(eq(drops.userId, poster.id))
+  })
+
+  it('lists that person\'s drops and nobody else\'s, newest first, without a session', async () => {
+    const page = await getDropsBy(poster.handle)
+    expect(page.drops.map((d) => d.id)).toEqual([...dropIds].reverse())
+    expect(page.drops.every((d) => d.curator.handle === poster.handle && !d.saved)).toBe(true)
+    expect(page.nextCursor).toBeNull()
+  })
+
+  it('finds the handle whatever its capitals', async () => {
+    expect((await getDropsBy(poster.handle.toUpperCase())).drops).toHaveLength(3)
+  })
+
+  it('pages with a cursor', async () => {
+    const first = await getDropsBy(poster.handle, '?limit=2')
+    expect(first.drops.map((d) => d.id)).toEqual([dropIds[2], dropIds[1]])
+    expect(first.nextCursor).not.toBeNull()
+    const second = await getDropsBy(poster.handle, `?limit=2&cursor=${first.nextCursor}`)
+    expect(second.drops.map((d) => d.id)).toEqual([dropIds[0]])
+    expect(second.nextCursor).toBeNull()
+  })
+
+  it('marks the drops the viewer saved', async () => {
+    await app.inject({ method: 'POST', url: `/drops/${dropIds[1]}/save`, headers: bearer(listenerToken) })
+    const seen = await getDropsBy(poster.handle, '', listenerToken)
+    expect(seen.drops.map((d) => d.saved)).toEqual([false, true, false])
+    expect((await getDropsBy(poster.handle)).drops.map((d) => d.saved)).toEqual([false, false, false])
+  })
+
+  it('is empty for someone who has not posted', async () => {
+    const { user } = await signIn('quiet')
+    expect(await getDropsBy(user.handle)).toEqual({ drops: [], nextCursor: null })
+  })
+
+  it('follows a change of handle', async () => {
+    const handle = `moved_${RUN}`
+    const res = await app.inject({ method: 'PATCH', url: '/me', payload: { handle }, headers: bearer(posterToken) })
+    expect(res.statusCode).toBe(200)
+
+    expect((await getDropsBy(handle)).drops.map((d) => d.id)).toEqual([...dropIds].reverse())
+    const drop = dropSchema.parse((await app.inject({ method: 'GET', url: `/drops/${dropIds[0]}` })).json())
+    expect(drop.curator.handle).toBe(handle)
+    const old = await app.inject({ method: 'GET', url: `/users/${poster.handle}/drops` })
+    expect(old.statusCode).toBe(404)
+    poster = { ...poster, handle }
+  })
+
+  it('answers a handle nobody has with 404 USER_NOT_FOUND', async () => {
+    const res = await app.inject({ method: 'GET', url: `/users/nobody_${RUN}/drops` })
+    expect(res.statusCode).toBe(404)
+    expect(res.json().error.code).toBe('USER_NOT_FOUND')
+  })
+
+  it.each([
+    ['?limit=0', 'INVALID_QUERY'],
+    ['?limit=51', 'INVALID_QUERY'],
+    ['?cursor=nope', 'INVALID_CURSOR']
+  ])('answers %s with 400 %s', async (query, code) => {
+    const res = await app.inject({ method: 'GET', url: `/users/${poster.handle}/drops${query}` })
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error.code).toBe(code)
+  })
+
+  it('turns away a session that is no longer good', async () => {
+    const res = await app.inject({ method: 'GET', url: `/users/${poster.handle}/drops`, headers: bearer('nope') })
+    expect(res.statusCode).toBe(401)
+    expect(res.json().error.code).toBe('UNAUTHENTICATED')
+  })
+})
+
 describe('reading drops with a session', () => {
   it.each(['/feed', '/drops/1'])('turns away a session that is no longer good on GET %s', async (url) => {
     const res = await app.inject({ method: 'GET', url, headers: { authorization: 'Bearer nope' } })

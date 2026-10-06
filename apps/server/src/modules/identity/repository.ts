@@ -3,7 +3,12 @@ import type { db as Db } from '../../db/index.js'
 import { sessions, users } from '../../db/schema.js'
 
 export type UserRow = typeof users.$inferSelect
+export type UserPatch = Partial<Pick<UserRow, 'handle' | 'preferredProvider' | 'privyUserId' | 'walletAddress'>>
 type NewUser = Pick<UserRow, 'handle' | 'email' | 'walletAddress' | 'privyUserId'>
+
+// Postgres' code for breaking a unique constraint. Drizzle wraps the driver's error, so look at the cause too.
+const isUniqueViolation = (error: unknown) =>
+  [error, (error as { cause?: unknown } | null)?.cause].some((e) => (e as { code?: string } | null)?.code === '23505')
 
 export function createIdentityRepository(db: typeof Db) {
   return {
@@ -28,9 +33,20 @@ export function createIdentityRepository(db: typeof Db) {
       return row
     },
 
-    async updateUser(id: number, patch: Partial<Pick<UserRow, 'privyUserId' | 'walletAddress'>>) {
-      const [row] = await db.update(users).set(patch).where(eq(users.id, id)).returning()
+    async findUserByHandle(handle: string): Promise<UserRow | undefined> {
+      const [row] = await db.select().from(users).where(eq(users.handle, handle))
       return row
+    },
+
+    // undefined when the new handle is already taken.
+    async updateUser(id: number, patch: UserPatch): Promise<UserRow | undefined> {
+      try {
+        const [row] = await db.update(users).set(patch).where(eq(users.id, id)).returning()
+        return row
+      } catch (error) {
+        if (patch.handle !== undefined && isUniqueViolation(error)) return undefined
+        throw error
+      }
     },
 
     async insertSession(session: { userId: number; tokenHash: string; expiresAt: Date }) {

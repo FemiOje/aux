@@ -38,6 +38,19 @@ export function useSaved() {
   });
 }
 
+// The drops one person posted, newest first, for their profile.
+export function useDropsBy(handle: string) {
+  const viewerId = useViewerId();
+  const path = `/users/${encodeURIComponent(handle)}/drops`;
+  return useInfiniteQuery({
+    queryKey: ["dropsBy", viewerId, handle],
+    queryFn: ({ pageParam }) =>
+      apiGet(pageParam ? `${path}?cursor=${encodeURIComponent(pageParam)}` : path, feedResponseSchema),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  });
+}
+
 export function useDrop(id: string) {
   const viewerId = useViewerId();
   return useQuery({
@@ -101,6 +114,10 @@ export function useToggleSave() {
       // An unsaved drop stays on the saved list, with its Save button, until the list is next loaded.
       // That leaves a mis-tap one tap away from being undone.
       queryClient.setQueryData<InfiniteData<FeedResponse>>(["saved", viewerId], (saved) => withDrop(saved, drop));
+      // Every profile this viewer has open.
+      queryClient.setQueriesData<InfiniteData<FeedResponse>>({ queryKey: ["dropsBy", viewerId] }, (list) =>
+        withDrop(list, drop),
+      );
       queryClient.setQueryData(["drop", String(drop.id), viewerId], drop);
     },
   });

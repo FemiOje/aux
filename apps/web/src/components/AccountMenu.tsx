@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { createSession, deleteSession } from "../api/auth";
 import { friendlyError } from "../api/errors";
+import { profilePath } from "../api/users";
 import { isLive, useSession } from "../stores/session";
 
 export function AccountMenu() {
@@ -66,7 +67,7 @@ export function AccountMenu() {
       {session ? (
         <>
           <Link to="/saved">Saved</Link>
-          <span>@{session.user.handle}</span>
+          <Link to={profilePath(session.user.handle)}>@{session.user.handle}</Link>
         </>
       ) : swap.isError ? (
         <>

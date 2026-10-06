@@ -6,6 +6,7 @@ import { AuthProvider } from "./auth/AuthProvider";
 import { Layout } from "./components/Layout";
 import { DropPage } from "./pages/DropPage";
 import { FeedPage } from "./pages/FeedPage";
+import { ProfilePage } from "./pages/ProfilePage";
 import { SavedPage } from "./pages/SavedPage";
 import "./styles.css";
 
@@ -18,6 +19,7 @@ const router = createBrowserRouter([
       { index: true, Component: FeedPage },
       { path: "drops/:id", Component: DropPage },
       { path: "saved", Component: SavedPage },
+      { path: "users/:handle", Component: ProfilePage },
     ],
   },
 ]);
