@@ -232,6 +232,74 @@ describe('saving a drop', () => {
   })
 })
 
+describe('GET /me/saved', () => {
+  let dropIds: number[]
+
+  const bearer = (sessionToken: string) => ({ authorization: `Bearer ${sessionToken}` })
+  const save = (method: 'POST' | 'DELETE', id: number, sessionToken = listenerToken) =>
+    app.inject({ method, url: `/drops/${id}/save`, headers: bearer(sessionToken) })
+  const getSaved = async (query = '', sessionToken = listenerToken) =>
+    feedResponseSchema.parse(
+      (await app.inject({ method: 'GET', url: `/me/saved${query}`, headers: bearer(sessionToken) })).json()
+    )
+
+  beforeAll(async () => {
+    dropIds = []
+    for (const note of ['first', 'second', 'third']) {
+      dropIds.push(dropSchema.parse((await post({ link: 'https://fake.test/seeded', note })).json()).id)
+    }
+    // Saved in a different order from the one they were posted in.
+    for (const i of [1, 0, 2]) await save('POST', dropIds[i])
+  })
+
+  it('lists the drops you saved, most recently saved first', async () => {
+    const saved = await getSaved()
+    expect(saved.drops.map((d) => d.id)).toEqual([dropIds[2], dropIds[0], dropIds[1]])
+    expect(saved.drops.every((d) => d.saved && d.saveCount === 1)).toBe(true)
+    expect(saved.nextCursor).toBeNull()
+  })
+
+  it('lists only your own saves', async () => {
+    expect((await getSaved('', token)).drops).toEqual([])
+    await save('POST', dropIds[0], token)
+    expect((await getSaved('', token)).drops.map((d) => d.id)).toEqual([dropIds[0]])
+    expect((await getSaved()).drops.map((d) => d.id)).toEqual([dropIds[2], dropIds[0], dropIds[1]])
+    await save('DELETE', dropIds[0], token)
+  })
+
+  it('pages with a cursor', async () => {
+    const first = await getSaved('?limit=2')
+    expect(first.drops.map((d) => d.id)).toEqual([dropIds[2], dropIds[0]])
+    expect(first.nextCursor).not.toBeNull()
+    const second = await getSaved(`?limit=2&cursor=${first.nextCursor}`)
+    expect(second.drops.map((d) => d.id)).toEqual([dropIds[1]])
+    expect(second.nextCursor).toBeNull()
+  })
+
+  it('drops an unsaved drop from the list, and saving it again puts it on top', async () => {
+    await save('DELETE', dropIds[0])
+    expect((await getSaved()).drops.map((d) => d.id)).toEqual([dropIds[2], dropIds[1]])
+    await save('POST', dropIds[0])
+    expect((await getSaved()).drops.map((d) => d.id)).toEqual([dropIds[0], dropIds[2], dropIds[1]])
+  })
+
+  it.each([
+    ['?limit=0', 'INVALID_QUERY'],
+    ['?limit=51', 'INVALID_QUERY'],
+    ['?cursor=nope', 'INVALID_CURSOR']
+  ])('answers %s with 400 %s', async (query, code) => {
+    const res = await app.inject({ method: 'GET', url: `/me/saved${query}`, headers: bearer(listenerToken) })
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error.code).toBe(code)
+  })
+
+  it.each([undefined, 'Bearer nope'])('needs a session (authorization %j)', async (authorization) => {
+    const res = await app.inject({ method: 'GET', url: '/me/saved', headers: authorization ? { authorization } : {} })
+    expect(res.statusCode).toBe(401)
+    expect(res.json().error.code).toBe('UNAUTHENTICATED')
+  })
+})
+
 describe('reading drops with a session', () => {
   it.each(['/feed', '/drops/1'])('turns away a session that is no longer good on GET %s', async (url) => {
     const res = await app.inject({ method: 'GET', url, headers: { authorization: 'Bearer nope' } })

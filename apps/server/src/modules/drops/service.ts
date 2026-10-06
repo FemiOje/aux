@@ -86,6 +86,17 @@ export function createDropService({ repository, catalog, identity }: Deps) {
 
     getDrop,
 
+    // The drops this user saved, most recently saved first. The cursor is a save, not a drop.
+    async getSaved(user: Pick<Me, 'id'>, { cursor, limit }: FeedQuery): Promise<FeedResponse> {
+      const beforeSaveId = cursor === undefined ? undefined : decodeCursor(cursor)
+      const rows = await repository.findSaved(user.id, beforeSaveId, limit + 1)
+      const page = rows.slice(0, limit)
+      return {
+        drops: await toDrops(page),
+        nextCursor: rows.length > limit ? encodeCursor(page[page.length - 1].saveId) : null
+      }
+    },
+
     // Saving twice is fine and counts once. Answers with the drop as the saver now sees it.
     async saveDrop(user: Pick<Me, 'id'>, dropId: number): Promise<Drop> {
       const row = await repository.findById(dropId, user.id)

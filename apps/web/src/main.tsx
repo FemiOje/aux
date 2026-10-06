@@ -6,6 +6,7 @@ import { AuthProvider } from "./auth/AuthProvider";
 import { Layout } from "./components/Layout";
 import { DropPage } from "./pages/DropPage";
 import { FeedPage } from "./pages/FeedPage";
+import { SavedPage } from "./pages/SavedPage";
 import "./styles.css";
 
 const queryClient = new QueryClient();
@@ -16,6 +17,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, Component: FeedPage },
       { path: "drops/:id", Component: DropPage },
+      { path: "saved", Component: SavedPage },
     ],
   },
 ]);
